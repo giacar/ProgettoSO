@@ -8,9 +8,9 @@ Progetto di Sistemi Operativi del corso di laurea in Ingegneria Informatica e Au
 
 ## Authors
 
-* *Gianmarco Cariggi*[@giacar](https://github.com/giacar)
-* *Riccardo Ceccarelli*[@eicciricciard](https://github.com/ricciricciard)
-* *Francesco Fabbi*[@Krelian96](https://github.com/Krelian96)
+* *Gianmarco Cariggi* [@giacar](https://github.com/giacar)
+* *Riccardo Ceccarelli* [@ricciricciard](https://github.com/ricciricciard)
+* *Francesco Fabbi* [@Krelian96](https://github.com/Krelian96)
 
 ## License
 
