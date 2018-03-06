@@ -121,7 +121,6 @@ int main(int argc, char **argv) {
 
   //creating a socket
   socket_desc = socket(AF_INET, SOCK_STREAM, 0);
-  if (socket_desc < 0) printf("Could not create socket");
 
   //set up parameters for connection
   server_addr.sin_addr.in_addr = inet_addr(SERVER_ADDRESS);
