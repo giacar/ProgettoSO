@@ -11,6 +11,7 @@
 #include "vehicle.h"
 #include "world_viewer.h"
 #include "so_game_protocol.h"
+#include "common.h"
 
 int window;
 WorldViewer viewer;
@@ -121,6 +122,8 @@ int main(int argc, char **argv) {
 
   //creating a socket
   socket_desc = socket(AF_INET, SOCK_STREAM, 0);
+  ERROR_HELPER(socket_desc, "Could not create socket");
+
 
   //set up parameters for connection
   server_addr.sin_addr.in_addr = inet_addr(SERVER_ADDRESS);
@@ -129,7 +132,7 @@ int main(int argc, char **argv) {
 
   //initiate a connection to the socket
   ret = connect(socket_desc, (struct sockaddr*) &server_addr, sizeof(struct sockaddr_in));
-  if (ret < 0) printf("Could not connect to socket");
+  ERROR_HELPER(ret, "Could not connect to socket");
 
   char idPacket[1024];
   size_t idPacket_len = sizeof(idPacket);   //lunghezza del mex id del client
@@ -137,7 +140,7 @@ int main(int argc, char **argv) {
 
   while ((ret = recv(socket_desc, idPacket, msg_len, 0)) < 0){
     if (errno == EINTR) continue;
-    printf("Could not read id from socket");
+    ERROR_HELPER(-1, "Could not read id from socket");
   }
 
   idPacket[msg_len] = '\0';
@@ -149,7 +152,7 @@ int main(int argc, char **argv) {
 
   while ((ret = recv(socket_desc, elevation_map, msg_len, 0)) < 0){
       if (errno == EINTR) continue;
-      printf("Could not read elevation map from socket");
+      ERROR_HELPER(-1, "Could not read elevation map from socket");
   }
 
   elevation_map[msg_len] = '\0';
@@ -159,7 +162,7 @@ int main(int argc, char **argv) {
 
   while ((ret = recv(socket_desc, texture_map, msg_len, 0)) < 0){
       if (errno == EINTR) continue;
-      printf("Could not read map texture from socket");
+      ERROR_HELPER(-1, "Could not read map texture from socket");
   }
 
   texture_map[msg_len] = '\0';
@@ -169,7 +172,7 @@ int main(int argc, char **argv) {
 
   while ((ret = recv(socket_desc, my_texture, msg_len, 0)) < 0){
       if (errno == EINTR) continue;
-      printf("Could not read my texture from socket");
+      ERROR_HELPER(-1, "Could not read my texture from socket");
   }
 
   my_texture[msg_len] = '\0';
@@ -196,10 +199,10 @@ int main(int argc, char **argv) {
 
   pthread_t thread;
   ret = pthread_create(&thread, NULL, thread_listener, NULL);
-  if (ret < 0) printf("Could not create thread");
+  ERROR_HELPER(ret, "Could not create thread");
 
   ret = pthread_join(&thread, NULL);
-  if (ret < 0) printf("Could not join thread");
+  ERROR_HELPER(ret, "Could not join thread");
 
   WorldViewer_runGlobal(&world, vehicle, &argc, argv);
 
