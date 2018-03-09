@@ -17,8 +17,26 @@ int window;
 WorldViewer viewer;
 World world;
 Vehicle* vehicle; // The vehicle
+int ret;
 
-void* thread_listener(void* arg){}//todo
+void* thread_listener(void* client_args){   //todo
+    thread_client_args args = (thread_client_args) client_args;
+    int socket_UDP = args->socket_desc_UDP;
+    VehicleUpdatePacket vup = malloc(sizeof(VehicleUpdatePacket));
+    VehicleUpdate(vehicle->rotational_force, rotational_force_update);
+    VehicleUpdate(vehicle->translational_force, translational_force_update);
+    vup->rotational_force = vehicle->rotational_force;
+    vup->translational_force = vehicle->translational_force;
+
+    char vehicle_update[1024];
+
+    ret = Packet_serialize(vehicle_update, vup);
+    int msglen = strlen(vehicle_update);
+    while ((ret = send(socket_UDP, vehicle_update, msglen, 0)<0){
+        if (errno == EINTR) continue;
+        ERROR_HELPER(-1, "Could not send update to server");
+    }
+}
 
 
 void keyPressed(unsigned char key, int x, int y)
@@ -107,9 +125,7 @@ int main(int argc, char **argv) {
     printf("Fail! \n");
   }
 
-  int ret;
-
-  Image* my_texture_for_server;
+  Image* my_texture_for_server = my_texture;
   // todo: connect to the server
   //   -get ad id
   //   -send your texture to the server (so that all can see you)
@@ -134,6 +150,19 @@ int main(int argc, char **argv) {
   ret = connect(socket_desc, (struct sockaddr*) &server_addr, sizeof(struct sockaddr_in));
   ERROR_HELPER(ret, "Could not connect to socket");
 
+  int socket_desc_UDP;
+  struct sockaddr_in server_addr_UDP{0};
+
+  socket_desc_UDP = socket(AF_INET, SOCK_DGRAM, 0);
+  ERROR_HELPER(socket_desc_UDP, "Could not create socket udp");
+
+  server_addr_UDP.sin_addr.in_addr = inet_addr(SERVER_ADDRESS);
+  server_addr_UDP.sin_family = AF_INET;
+  server_addr_UDP.sin_port = SERVER_PORT;
+
+  ret = connect(socket_desc_UDP, (struct sockaddr*) &server_addr_UDP, sizeof(struct sockaddr_in));
+  ERROR_HELPER(ret, "Could not connect to socket (udp)");
+
   char idPacket[1024];
   size_t idPacket_len = sizeof(idPacket);   //lunghezza del mex id del client
   size_t msg_len;                           //lunghezza del messaggio letto
@@ -146,6 +175,15 @@ int main(int argc, char **argv) {
   idPacket[msg_len] = '\0';
 
   IdPacket id = Packet_deserialize(idPacket, idPacket_len);
+
+  char texture_for_server[1024];
+  ret = Packet_serialize(texture_for_server, my_texture_for_server);
+  size_t texture_for_server_len = strlen(texture_for_server);
+
+  while ((ret = send(socket_desc, texture_for_server, texture_for_server_len, 0) < 0){
+      if (errno == EINTR) continue;
+      ERROR_HELPER(-1, "Could not send my texture for server");
+  }
 
   char elevation_map[1024];
   size_t elevation_map_len = sizeof(elevation_map);
