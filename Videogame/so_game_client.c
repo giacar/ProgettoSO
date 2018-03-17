@@ -156,7 +156,7 @@ int main(int argc, char **argv) {
 
                         
   //requesting and receving the ID
-  IdPacket* request_id=malloc(sizeof(IdPacket));
+  IdPacket* request_id=(IdPacket*)malloc(sizeof(IdPacket));
   request_id->header->type=GetId;
   request_id->header->size=sizeof(IdPacket);
   request_id->id=-1;
@@ -179,21 +179,13 @@ int main(int argc, char **argv) {
 
   idPacket[msg_len] = '\0';
 
-  IdPacket* id=Packet_deserialize(&idPacket, idPacket_len);
+  IdPacket* id=Packet_deserialize(&idPacket, msg_len);
   if(id->header->type!=GetId) ERROR_HELPER(-1,"Error in packet type \n");
-  // receving the request and sending my texture
-  char texture_request[1024];
+  
+  
+  // sending my texture
   char texture_for_server[1024];
   
-   while ((ret = recv(socket_desc,texture_request, msg_len, 0)) < 0){
-    if (errno == EINTR) continue;
-    ERROR_HELPER(-1, "Could not read id from socket");
-  }
-
-  texture_request[msg_len] = '\0';
-  
-  PacketHeader* request_from_server=Packet_deserialize(&texture_request,msg_len);
-  if(request_from_server->type!=GetTexture) ERROR_HELPER(-1,"Error in packet type \n");
 
   ImagePacket* my_texture=malloc(sizeof(ImagePacket));
   texture->header->type=PostTexture;
@@ -208,18 +200,9 @@ int main(int argc, char **argv) {
       if (errno == EINTR) continue;
       ERROR_HELPER(-1, "Could not send my texture for server");
   }
-  // requesting and receving my texture from server
-  char request_my_texture_for_server[1024];
+  // receving my texture from server
+ 
   char my_texture_from_server[1024];
-  PacketHeader* request_my_texture=malloc(sizeof(PacketHeader));
-  request_my_texture->size=sizeof(PacketHeader));
-  request_my_texture->type=GetTexture;
-  size_t request_my_texture_for_server_len = Packet_serialize(&request_my_texture_for_server,request_my_texture);
-
-  while ((ret = send(socket_desc, request_my_texture_for_server, request_my_texture_for_server_len, 0)) < 0){
-      if (errno == EINTR) continue;
-      ERROR_HELPER(-1, "Could not read my texture from socket");
-  }
   
     while ((ret = recv(socket_desc, my_texture_from_server, msg_len, 0)) < 0){
       if (errno == EINTR) continue;
@@ -230,9 +213,10 @@ int main(int argc, char **argv) {
   
   ImagePacket* my_texture_received=Packet_deserialize(&my_texture_from_server,msg_len);
   if(my_texture_received!=my_texture) ERROR_HELPER(-1,"error in communication \n");
+  
 
   //requesting and receving elevation map
-  PacketHeader* request_elevation=malloc(sizeof(PacketHeader));
+  PacketHeader* request_elevation=(PacketHeader*)malloc(sizeof(PacketHeader));
   request_elevation->size=sizeof(PacketHeader);
   request_elevation->type=GetElevation;
   
@@ -252,11 +236,13 @@ int main(int argc, char **argv) {
 
   elevation_map[msg_len] = '\0';
   ImagePacket* elevation= Packet_deserialize(&elevation_map,msg_len);
-  if(elevation->header->type!=PostElevation) ERROR_HELPER(-1,"error in communication \n");
+  if(elevation->header->type!=PostElevation && elevation->id!=0) ERROR_HELPER(-1,"error in communication \n");
+  
+  
   //requesting and receving map
   char request_texture_map_for_server;
   char texture_map[1024];
-  PacketHeader* request_map=malloc(sizeof(PacketHeader));
+  PacketHeader* request_map=(PacketHeader*)malloc(sizeof(PacketHeader));
   request_map->type=GetTexture;
   request_map->size=sizeof(PacketHeader);
   size_t request_texture_map_for_server_len=Packet_serialize(&request_texture_map_for_server,request_map);
