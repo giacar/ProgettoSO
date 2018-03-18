@@ -356,6 +356,7 @@ int main(int argc, char **argv) {
   args->socket_desc_TCP=socket_desc;
   args->socket_desc_UDP=socket_desc_UDP;
   args->map_texture=map_texture;
+  args->server_addr_UDP = server_addr_UDP;
   pthread_t thread;
   ret = pthread_create(&thread, NULL, thread_listener,args);
   ERROR_HELPER(ret, "Could not create thread");
