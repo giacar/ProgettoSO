@@ -12,7 +12,7 @@
 #define ERROR_HELPER(ret, msg)      GENERIC_ERROR_HELPER((ret < 0), errno, msg)
 
 /* Configuration parameters */
-#define SERVER_ADDRESS  "127.0.0.1"
-#define SERVER_PORT     2015
+#define SERVER_PORT_TCP    2015
+#define SERVER_PORT_UDP    2016
 
 #endif

@@ -20,12 +20,60 @@ Vehicle* vehicle; // The vehicle
 int ret;
 
 void* thread_listener(void* client_args){   //todo
+
+    /**COMUNICAZIONE UDP**/
+    /**
+
+    Client, via UDP invia dei pacchetti VehicleUpdate al server. Il contenuto del VehicleUpdate viene prelevato da desired_force,
+    è contenuto nella struttura del veicolo e si mette in attesa di pacchetti WorldUpdate che contengono al
+    loro interno una lista collegata. Ricevuti questi pacchetti, smonta la lista collegata all'interno e per ogni elemento della lista,
+    preso l'id, preleva dal mondo il veicolo con quell'id e ne aggiorna lo stato. I pacchetti di veicoli ancora non aggiunti al proprio mondo
+    vengono ignorati (per necessità).
+
+    **/
+
+
+    /**COMUNICAZIONE TCP**/
+    /**
+
+    Al momento del login il server manda sul thread TCP ImagePackets
+    contenenti id e texture di tutti i client presenti nel mondo e quelli che
+    arriveranno nel mondo. Quando il campo texture dell'ImagePacket è settato a
+    NULL, vuol dire che quell'utente si è disconnesso e deve essere eliminato dal
+    mondo del client.
+
+
+    Come fare per disconnettersi: ad intervalli regolari, il client sul thread
+    TCP chiede la lista degli utenti connessi. Se vede la presenza di un nuovo
+    utente, o nuovi utenti, chiede al server le loro texture e le aggiunge al
+    mondo. Se vede che nella lista non ci sono persone che sono presenti nel suo
+    mondo (cioè nella sua lista), allora le rimuove dal suo mondo
+
+    **/
     thread_client_args arg = (thread_client_args) client_args;
     int socket_UDP = arg->socket_desc_UDP;
     int socket=arg->socket_desc_TCP;
     int id=arg->id;
     Image* map_texture=arg->map_texture;
     Vehicle vehicle=arg->v
+    struct sockaddr_in server_UDP = arg->server_addr_UDP;
+
+    VehicleUpdatePacket* update = (VehicleUpdatePacket*) malloc(sizeof(VehicleUpdatePacket));
+    update->translational_force = v->translational_force_update;
+    update->rotational_force = v->rotational_force_update;
+    update->header->size = sizeof(VehicleUpdatePacket);
+    update->header->type = VehicleUpdate;
+
+    char[1024] vehicle_update;
+    int vehicle_update_len = serialize(vehicle_update, update);
+
+    while((ret = sendto(socket_UDP, vehicle_update, vehicle_update_len, 0, (struct sockaddr*) server_UDP, sizeof(server_UDP)) < 0)){
+        if (errno == EINTR) continue;
+        ERROR_HELPER(-1, "Could not send vehicle updates to server");
+    }
+
+    //sendto(int sockfd, void* buff, size_t #bytes, int flags, const struct sockaddr* to, socklen_t addrlen)
+    //recvfrom(int sockfd, void* buff, size_t #bytes, int flags, const struct sockaddr* from, socklen_t addrlen)
 }
 
 
@@ -107,6 +155,10 @@ int main(int argc, char **argv) {
     exit(-1);
   }
 
+
+
+
+
   printf("loading texture image from %s ... ", argv[2]);
   Image* my_texture = Image_load(argv[2]);
   if (my_texture) {
@@ -114,6 +166,21 @@ int main(int argc, char **argv) {
   } else {
     printf("Fail! \n");
   }
+
+  /**LOGIN**/
+  /** Client inserisce username e password appena si connette:
+   *    -se utente non esiste allora i dati che ha inserito vengono usati per registrare l'utente
+   * [TODO]
+   **/
+
+  /**   -se utente esiste ma la password non è corretta, si apre un while nel quale l'utente può inserire la password corretta
+   * [TODO]
+   **/
+
+  /**   -se utente esiste e la password è corretta, allora invia al server un richiesta di tutti i dati salvati nella precedente sessione e il server
+   *    risponde con tali dati
+   * [TODO]
+   **/
 
   Image* my_texture_for_server = my_texture;
   // todo: connect to the server
@@ -126,20 +193,20 @@ int main(int argc, char **argv) {
   int socket_desc;
   struct sockaddr_in server_addr{0};    //some fields are required to be filled with 0
 
-  //creating a socket
+  //creating a socket TCP
   socket_desc = socket(AF_INET, SOCK_STREAM, 0);
   ERROR_HELPER(socket_desc, "Could not create socket");
 
 
   //set up parameters for connection
-  server_addr.sin_addr.in_addr = inet_addr(SERVER_ADDRESS);
+  server_addr.sin_addr.in_addr = inet_addr(argv[1]);
   server_addr.sin_family = AF_INET;
-  server_addr.sin_port = htons(SERVER_PORT);
+  server_addr.sin_port = htons(SERVER_PORT_TCP);
 
   //initiate a connection to the socket
   ret = connect(socket_desc, (struct sockaddr*) &server_addr, sizeof(struct sockaddr_in));
   ERROR_HELPER(ret, "Could not connect to socket");
-  
+
   //variable for UDP socket
   int socket_desc_UDP;
   struct sockaddr_in server_addr_UDP{0};
@@ -147,31 +214,31 @@ int main(int argc, char **argv) {
   socket_desc_UDP = socket(AF_INET, SOCK_DGRAM, 0);
   ERROR_HELPER(socket_desc_UDP, "Could not create socket udp");
   //set up parameters
-  server_addr_UDP.sin_addr.in_addr = inet_addr(SERVER_ADDRESS);
+  server_addr_UDP.sin_addr.in_addr = inet_addr(argv[1]);
   server_addr_UDP.sin_family = AF_INET;
-  server_addr_UDP.sin_port = htons(SERVER_PORT);
+  server_addr_UDP.sin_port = htons(SERVER_PORT_UDP);
   //bind UDP socket
   ret = bind(socket_desc_UDP, (struct sockaddr*) &server_addr_UDP, sizeof(struct sockaddr_in));
   ERROR_HELPER(ret, "Could not connect to socket (udp)");
 
-                        
+
   //requesting and receving the ID
   IdPacket* request_id=(IdPacket*)malloc(sizeof(IdPacket));
   request_id->header->type=GetId;
   request_id->header->size=sizeof(IdPacket);
   request_id->id=-1;
-  
+
   char idPacket_request[1024];
   char idPacket[1024];
-  size_t idPacket_request_len = Packet_serialize(&idPacket_request,request_id);   
-  size_t msg_len;   
-  
+  size_t idPacket_request_len = Packet_serialize(&idPacket_request,request_id);
+  size_t msg_len;
+
 
     while ((ret = send(socket_desc, idPacket_request, idPacket_request_len, 0)) < 0){
     if (errno == EINTR) continue;
     ERROR_HELPER(-1, "Could not send id request  to socket");
   }
-  
+
   while ((ret = recv(socket_desc, idPacket, msg_len, 0)) < 0){
     if (errno == EINTR) continue;
     ERROR_HELPER(-1, "Could not read id from socket");
@@ -181,49 +248,49 @@ int main(int argc, char **argv) {
 
   IdPacket* id=Packet_deserialize(&idPacket, msg_len);
   if(id->header->type!=GetId) ERROR_HELPER(-1,"Error in packet type \n");
-  
-  
+
+
   // sending my texture
   char texture_for_server[1024];
-  
+
 
   ImagePacket* my_texture=malloc(sizeof(ImagePacket));
   texture->header->type=PostTexture;
   texture->header->size=sizeof(ImagePacket);
   texture->id=id->id;
   texture->image=&my_texture_for_server;
-  
+
   size_t texture_for_server_len = Packet_serialize(&texture_for_server, my_texture);
 
-  
+
   while ((ret = send(socket_desc, texture_for_server, texture_for_server_len, 0) < 0){
       if (errno == EINTR) continue;
       ERROR_HELPER(-1, "Could not send my texture for server");
   }
   // receving my texture from server
- 
+
   char my_texture_from_server[1024];
-  
+
     while ((ret = recv(socket_desc, my_texture_from_server, msg_len, 0)) < 0){
       if (errno == EINTR) continue;
       ERROR_HELPER(-1, "Could not read my texture from socket");
   }
 
   my_texture_from_server[msg_len] = '\0';
-  
+
   ImagePacket* my_texture_received=Packet_deserialize(&my_texture_from_server,msg_len);
   if(my_texture_received!=my_texture) ERROR_HELPER(-1,"error in communication \n");
-  
+
 
   //requesting and receving elevation map
   PacketHeader* request_elevation=(PacketHeader*)malloc(sizeof(PacketHeader));
   request_elevation->size=sizeof(PacketHeader);
   request_elevation->type=GetElevation;
-  
+
   char request_elevation_for_server[1024];
   char elevation_map[1024];
   size_t request_elevation_len =Packet_serialize(&request_elevation_for_server,request_elevation);
-  
+
   while ((ret = send(socket_desc, request_elevation_for_server, request_elevation_for_server_len, 0) < 0){
       if (errno == EINTR) continue;
       ERROR_HELPER(-1, "Could not send my texture for server");
@@ -237,8 +304,8 @@ int main(int argc, char **argv) {
   elevation_map[msg_len] = '\0';
   ImagePacket* elevation= Packet_deserialize(&elevation_map,msg_len);
   if(elevation->header->type!=PostElevation && elevation->id!=0) ERROR_HELPER(-1,"error in communication \n");
-  
-  
+
+
   //requesting and receving map
   char request_texture_map_for_server;
   char texture_map[1024];
@@ -246,7 +313,7 @@ int main(int argc, char **argv) {
   request_map->type=GetTexture;
   request_map->size=sizeof(PacketHeader);
   size_t request_texture_map_for_server_len=Packet_serialize(&request_texture_map_for_server,request_map);
-  
+
     while ((ret = send(socket_desc, request_texture_map_for_server, request_texture_map_for_server_len, 0) < 0){
       if (errno == EINTR) continue;
       ERROR_HELPER(-1, "Could not send my texture for server");
@@ -258,7 +325,7 @@ int main(int argc, char **argv) {
   }
 
   texture_map[msg_len] = '\0';
-  
+
   ImagePacket* map=Packet_deserialize(&texture_map,msg_len);
   if(map->header->type!=PostTexture && map->id!=0) ERROR_HELPER(-1,"error in protocol \n");
 
