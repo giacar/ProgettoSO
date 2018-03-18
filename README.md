@@ -16,7 +16,19 @@ Progetto di Sistemi Operativi del corso di laurea in Ingegneria Informatica e Au
 
 This project is licensed under the MIT License - see the [LICENSE.md](LICENSE.md) file for details
 
+## Documentation
+
+Please see the [DOCUMENTATION.md](Documentation.md) file for details
+
 ## To Do
 
-* Implementazione dell'architettura Client-Server
-* Implementazione del controllore per il joystick
+### Client-Side
+
+* Login system implementation
+* TCP-side implementation
+* UDP-side implementation
+
+### Server-Side
+
+* TCP-side implementation
+* UDP-side implementation
