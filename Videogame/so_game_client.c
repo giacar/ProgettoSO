@@ -65,7 +65,7 @@ void* thread_listener(void* client_args){   //todo
     update->header->type = VehicleUpdate;
 
     char[1024] vehicle_update;
-    int vehicle_update_len = serialize(vehicle_update, update);
+    int vehicle_update_len = serialize(&vehicle_update, update);
 
     while((ret = sendto(socket_UDP, vehicle_update, vehicle_update_len, 0, (struct sockaddr*) server_UDP, sizeof(server_UDP)) < 0)){
         if (errno == EINTR) continue;
@@ -361,8 +361,8 @@ int main(int argc, char **argv) {
   ret = pthread_create(&thread, NULL, thread_listener,args);
   ERROR_HELPER(ret, "Could not create thread");
 
-  ret = pthread_join(&thread, NULL);
-  ERROR_HELPER(ret, "Could not join thread");
+  ret = pthread_detach(&thread);
+  ERROR_HELPER(ret, "Could not detach thread");
 
   WorldViewer_runGlobal(&world, vehicle, &argc, argv);
 
