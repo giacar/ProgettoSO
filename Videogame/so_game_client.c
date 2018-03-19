@@ -58,20 +58,70 @@ void* thread_listener(void* client_args){   //todo
     Vehicle vehicle=arg->v
     struct sockaddr_in server_UDP = arg->server_addr_UDP;
 
-    VehicleUpdatePacket* update = (VehicleUpdatePacket*) malloc(sizeof(VehicleUpdatePacket));
-    update->translational_force = v->translational_force_update;
-    update->rotational_force = v->rotational_force_update;
-    update->header->size = sizeof(VehicleUpdatePacket);
-    update->header->type = VehicleUpdate;
+    /**
+    Ciclo while che opera fino a quando il client è in funzione. Quando non deve più lavorare, riceve un segnale di quit (DA IMPLEMENTARE)
+    *//
+    while(!quit){
 
-    char[1024] vehicle_update;
-    int vehicle_update_len = serialize(&vehicle_update, update);
+    //creazione di un pacchetto di update personale da inviare al server.
+        VehicleUpdatePacket* update = (VehicleUpdatePacket*) malloc(sizeof(VehicleUpdatePacket));
+        update->translational_force = v->translational_force_update;
+        update->rotational_force = v->rotational_force_update;
+        update->header->size = sizeof(VehicleUpdatePacket);
+        update->header->type = VehicleUpdate;
 
-    while((ret = sendto(socket_UDP, vehicle_update, vehicle_update_len, 0, (struct sockaddr*) server_UDP, sizeof(server_UDP)) < 0)){
-        if (errno == EINTR) continue;
-        ERROR_HELPER(-1, "Could not send vehicle updates to server");
+        char[1024] vehicle_update;
+        int vehicle_update_len = Packet_serialize(vehicle_update, update);
+
+        while ((ret = sendto(socket_UDP, vehicle_update, vehicle_update_len, 0, (struct sockaddr*) server_UDP, sizeof(server_UDP)) < 0)){
+            if (errno == EINTR) continue;
+            ERROR_HELPER(-1, "Could not send vehicle updates to server");
+        }
+
+    //richiesta di tutti gli update degli altri veicoli, per aggiornare il proprio mondo
+        char[1024] world_update;
+        int world_update_len;
+
+        while ((ret = recvfrom(socket_UDP, world_update, world_update_len, 0 (struct sockaddr*) server_UDP, sizeof(server_UDP)) < 0)){
+            if (errno == EINTR) continue;
+            ERROR_HELPER(-1, "Could not receive num vehicles from server");
+        }
+
+        world_update[world_update_len] = '\0';
+
+    //inizialmente riceviamo il numero dei veicoli che sono presenti nel mondo, così ad uno a uno possiamo ricevere i loro updates
+
+        WorldUpdatePacket* wup = Packet_deserialize(world_update, world_update_len);
+        int num_vehicles = wup->num_vehicles;
+
+        int i;
+        for (i = 0; i < num_vehicles; i++){
+
+            //riceviamo tutti i ClientUpdates degli altri veicoli presenti nel mondo
+            while ((ret = recvfrom(socket_UDP, world_update, world_update_len, 0, (struct sockaddr*) server_UDP, sizeof(server_UDP)) < 0)){
+                if (errno == EINTR) continue;
+                ERROR_HELPER(-1, "Could not receive world updates from server");
+            }
+            wup = Packet_deserialize(world_update, world_update_len);
+            ClientUpdate* client_updates = wup->updates;
+
+            //estrapoliamo tutti i dati per il singolo veicolo presente nel mondo, identificato da "id"
+
+            int id = client_updates->id;
+            float x = client_updates->x;
+            float y = client_updates->y;
+            float theta = client_updates->theta;
+
+            //Aggiornamento veicolo: manca il parametro z, da implementare il maniera diversa (vedi elevation_map ?)
+            Vehicle* v = World_getVehicle(&world, id);
+            v->x = x;
+            v->y = y;
+            v->theta = theta;
+        }
+
     }
 
+    /**funzioni di send e receive per comunicazione UDP**/
     //sendto(int sockfd, void* buff, size_t #bytes, int flags, const struct sockaddr* to, socklen_t addrlen)
     //recvfrom(int sockfd, void* buff, size_t #bytes, int flags, const struct sockaddr* from, socklen_t addrlen)
 }
