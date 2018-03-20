@@ -19,21 +19,8 @@ World world;
 Vehicle* vehicle; // The vehicle
 int ret;
 
-void* thread_listener(void* client_args){   //todo
-
-    /**COMUNICAZIONE UDP**/
-    /**
-
-    Client, via UDP invia dei pacchetti VehicleUpdate al server. Il contenuto del VehicleUpdate viene prelevato da desired_force,
-    è contenuto nella struttura del veicolo e si mette in attesa di pacchetti WorldUpdate che contengono al
-    loro interno una lista collegata. Ricevuti questi pacchetti, smonta la lista collegata all'interno e per ogni elemento della lista,
-    preso l'id, preleva dal mondo il veicolo con quell'id e ne aggiorna lo stato. I pacchetti di veicoli ancora non aggiunti al proprio mondo
-    vengono ignorati (per necessità).
-
-    **/
-
-
-    /**COMUNICAZIONE TCP**/
+void* thread_listener_tcp(void* client_args){
+	    /**COMUNICAZIONE TCP**/
     /**
 
     Al momento del login il server manda sul thread TCP ImagePackets
@@ -50,6 +37,40 @@ void* thread_listener(void* client_args){   //todo
     mondo (cioè nella sua lista), allora le rimuove dal suo mondo
 
     **/
+    
+    thread_client_args arg = (thread_client_args) client_args;
+    int socket_UDP = arg->socket_desc_UDP;
+    int socket=arg->socket_desc_TCP;
+    int id=arg->id;
+    Image* map_texture=arg->map_texture;
+    Vehicle vehicle=arg->v
+    struct sockaddr_in server_UDP = arg->server_addr_UDP;
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+}
+
+void* thread_listener_udp(void* client_args){   //todo
+
+    /**COMUNICAZIONE UDP**/
+    /**
+
+    Client, via UDP invia dei pacchetti VehicleUpdate al server. Il contenuto del VehicleUpdate viene prelevato da desired_force,
+    è contenuto nella struttura del veicolo e si mette in attesa di pacchetti WorldUpdate che contengono al
+    loro interno una lista collegata. Ricevuti questi pacchetti, smonta la lista collegata all'interno e per ogni elemento della lista,
+    preso l'id, preleva dal mondo il veicolo con quell'id e ne aggiorna lo stato. I pacchetti di veicoli ancora non aggiunti al proprio mondo
+    vengono ignorati (per necessità).
+
+    **/
+
     thread_client_args arg = (thread_client_args) client_args;
     int socket_UDP = arg->socket_desc_UDP;
     int socket=arg->socket_desc_TCP;
@@ -89,21 +110,16 @@ void* thread_listener(void* client_args){   //todo
 
         world_update[world_update_len] = '\0';
 
-    //inizialmente riceviamo il numero dei veicoli che sono presenti nel mondo, così ad uno a uno possiamo ricevere i loro updates
+    //estriamo il numero di veicoli e gli update di ogni veicolo
 
         WorldUpdatePacket* wup = Packet_deserialize(world_update, world_update_len);
         int num_vehicles = wup->num_vehicles;
+        ClientUpdate* client_update=wup->updates; //VETTOREEEEEEEEE di client update
 
         int i;
-        for (i = 0; i < num_vehicles; i++){
+        for(i=0;i<num_vehicles;i++){
+			ClientUpdate update =*(client_update+i*sizeof(ClientUpdate));
 
-            //riceviamo tutti i ClientUpdates degli altri veicoli presenti nel mondo
-            while ((ret = recvfrom(socket_UDP, world_update, world_update_len, 0, (struct sockaddr*) server_UDP, sizeof(server_UDP)) < 0)){
-                if (errno == EINTR) continue;
-                ERROR_HELPER(-1, "Could not receive world updates from server");
-            }
-            wup = Packet_deserialize(world_update, world_update_len);
-            ClientUpdate* client_updates = wup->updates;
 
             //estrapoliamo tutti i dati per il singolo veicolo presente nel mondo, identificato da "id"
 
@@ -112,11 +128,12 @@ void* thread_listener(void* client_args){   //todo
             float y = client_updates->y;
             float theta = client_updates->theta;
 
-            //Aggiornamento veicolo: manca il parametro z, da implementare il maniera diversa (vedi elevation_map ?)
+            //Aggiornamento veicolo
             Vehicle* v = World_getVehicle(&world, id);
             v->x = x;
             v->y = y;
             v->theta = theta;
+            
         }
 
     }
@@ -333,9 +350,10 @@ int main(int argc, char **argv) {
 
 
   //requesting and receving elevation map
-  PacketHeader* request_elevation=(PacketHeader*)malloc(sizeof(PacketHeader));
-  request_elevation->size=sizeof(PacketHeader);
-  request_elevation->type=GetElevation;
+  IdPacket* request_elevation=(IdPacket*)malloc(sizeof(IdPacket));
+  request_elevation->id=id->id;
+  request_elevation->header->size=sizeof(IdPacket);
+  request_elevation->header->type=GetElevation;
 
   char request_elevation_for_server[1024];
   char elevation_map[1024];
@@ -359,9 +377,10 @@ int main(int argc, char **argv) {
   //requesting and receving map
   char request_texture_map_for_server;
   char texture_map[1024];
-  PacketHeader* request_map=(PacketHeader*)malloc(sizeof(PacketHeader));
-  request_map->type=GetTexture;
-  request_map->size=sizeof(PacketHeader);
+  IdPacket* request_map=(IdPacket*)malloc(sizeof(IdPacket));
+  request_map->header->type=GetTexture;
+  request_map->header->size=sizeof(IdPacket);
+  request_map->id=id->id;
   size_t request_texture_map_for_server_len=Packet_serialize(&request_texture_map_for_server,request_map);
 
     while ((ret = send(socket_desc, request_texture_map_for_server, request_texture_map_for_server_len, 0) < 0){
@@ -407,8 +426,16 @@ int main(int argc, char **argv) {
   args->socket_desc_UDP=socket_desc_UDP;
   args->map_texture=map_texture;
   args->server_addr_UDP = server_addr_UDP;
-  pthread_t thread;
-  ret = pthread_create(&thread, NULL, thread_listener,args);
+  pthread_t thread_tcp;
+  pthread_t thread_udp;
+  
+  ret = pthread_create(&thread_tcp, NULL, thread_listener_tcp,args);
+  ERROR_HELPER(ret, "Could not create thread");
+
+  ret = pthread_detach(&thread);
+  ERROR_HELPER(ret, "Could not detach thread");
+  
+  ret = pthread_create(&thread_udp, NULL, thread_listener_udp,args);
   ERROR_HELPER(ret, "Could not create thread");
 
   ret = pthread_detach(&thread);
