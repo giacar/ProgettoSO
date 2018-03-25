@@ -65,7 +65,7 @@ typedef struct {
 typedef struct {
   PacketHeader header;
   int num_vehicles;
-  ClientUpdate* updates;
+  ClientUpdate[20] updates;
 } WorldUpdatePacket;
 
 typedef struct thread_client_args{

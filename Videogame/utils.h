@@ -27,4 +27,13 @@ typedef struct movement_intentions{// lista di intenzioni di movimento che si ac
 	movement_intentions* next;
 }movement_intentions;
 
+typedef struct client_disconnected{ //lista dei client che si sono disconnessi, di cui ci salviamo Id e Texture
+    int id;
+    Image* texture;
+    client_disconnected* previous;
+    client_disconnected* next;
+}client_disconnected;
+
+//Quando un client si disconnette, lo rimuoviamo dalla lista di client_connected e lo aggiungiamo a quella di client_connected
+
 

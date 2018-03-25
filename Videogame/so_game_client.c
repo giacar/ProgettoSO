@@ -4,6 +4,7 @@
 #include <string.h>
 #include <stdio.h>
 #include <unistd.h>
+#include <signal.h>
 
 #include "image.h"
 #include "surface.h"
@@ -18,6 +19,12 @@ WorldViewer viewer;
 World world;
 Vehicle* vehicle; // The vehicle
 int ret;
+boolean quit;
+
+void gestione_quit(){
+    printf("Caught quit signal");
+    quit = true;
+}
 
 void* thread_listener_tcp(void* client_args){
 	    /**COMUNICAZIONE TCP**/
@@ -37,7 +44,7 @@ void* thread_listener_tcp(void* client_args){
     mondo (cioè nella sua lista), allora le rimuove dal suo mondo
 
     **/
-    
+
     thread_client_args arg = (thread_client_args) client_args;
     int socket_UDP = arg->socket_desc_UDP;
     int socket=arg->socket_desc_TCP;
@@ -45,17 +52,32 @@ void* thread_listener_tcp(void* client_args){
     Image* map_texture=arg->map_texture;
     Vehicle vehicle=arg->v
     struct sockaddr_in server_UDP = arg->server_addr_UDP;
-	
-	
-	
-	
-	
-	
-	
-	
-	
-	
-	
+
+	struct sigaction sa;
+
+    //setup the signal handler
+    sa.sa_handler = gestione_quit;
+
+    //restart the system call, if at all possible
+    sa.sa_flags = SA_RESTART;
+
+    //block every signal during handling
+    sigfillset(&sa.sa_mask);
+
+    while(1){
+        //intercept SIGQUIT
+
+        if (sigaction(SIGQUIT, &sa, NULL) == -1) ERROR_HELPER(-1, "Error: cannot handle SIQUIT");
+    }
+
+
+
+
+
+
+
+
+
 }
 
 void* thread_listener_udp(void* client_args){   //todo
@@ -79,6 +101,7 @@ void* thread_listener_udp(void* client_args){   //todo
     Vehicle vehicle=arg->v
     struct sockaddr_in server_UDP = arg->server_addr_UDP;
 
+
     /**
     Ciclo while che opera fino a quando il client è in funzione. Quando non deve più lavorare, riceve un segnale di quit (DA IMPLEMENTARE)
     *//
@@ -100,6 +123,7 @@ void* thread_listener_udp(void* client_args){   //todo
         }
 
     //richiesta di tutti gli update degli altri veicoli, per aggiornare il proprio mondo
+
         char[1024] world_update;
         int world_update_len;
 
@@ -114,29 +138,33 @@ void* thread_listener_udp(void* client_args){   //todo
 
         WorldUpdatePacket* wup = Packet_deserialize(world_update, world_update_len);
         int num_vehicles = wup->num_vehicles;
-        ClientUpdate* client_update=wup->updates; //VETTOREEEEEEEEE di client update
+        ClientUpdate[20] client_update = wup->updates; //VETTOREEEEEEEEE di client update
 
         int i;
         for(i=0;i<num_vehicles;i++){
-			ClientUpdate update =*(client_update+i*sizeof(ClientUpdate));
+			ClientUpdate update = *(client_update+i*sizeof(ClientUpdate));
 
 
             //estrapoliamo tutti i dati per il singolo veicolo presente nel mondo, identificato da "id"
 
-            int id = client_updates->id;
-            float x = client_updates->x;
-            float y = client_updates->y;
-            float theta = client_updates->theta;
+            int id = update->id;
+            float x = update->x;
+            float y = update->y;
+            float theta = update->theta;
 
             //Aggiornamento veicolo
             Vehicle* v = World_getVehicle(&world, id);
             v->x = x;
             v->y = y;
             v->theta = theta;
-            
+
         }
 
+
     }
+
+    /**uscire dal while, significa che il client si sta disconnettendo. Il server deve salvare il suo stato da qualche parte, per ripristinarlo più avanti
+       se il client si connetterà ancora**/
 
     /**funzioni di send e receive per comunicazione UDP**/
     //sendto(int sockfd, void* buff, size_t #bytes, int flags, const struct sockaddr* to, socklen_t addrlen)
@@ -288,6 +316,9 @@ int main(int argc, char **argv) {
   ret = bind(socket_desc_UDP, (struct sockaddr*) &server_addr_UDP, sizeof(struct sockaddr_in));
   ERROR_HELPER(ret, "Could not connect to socket (udp)");
 
+  //impostiamo a false la variabile quit, che ci servirà per far terminare il client in maniera corretta
+
+  quit = false;
 
   //requesting and receving the ID
   IdPacket* request_id=(IdPacket*)malloc(sizeof(IdPacket));
@@ -428,13 +459,13 @@ int main(int argc, char **argv) {
   args->server_addr_UDP = server_addr_UDP;
   pthread_t thread_tcp;
   pthread_t thread_udp;
-  
+
   ret = pthread_create(&thread_tcp, NULL, thread_listener_tcp,args);
   ERROR_HELPER(ret, "Could not create thread");
 
   ret = pthread_detach(&thread);
   ERROR_HELPER(ret, "Could not detach thread");
-  
+
   ret = pthread_create(&thread_udp, NULL, thread_listener_udp,args);
   ERROR_HELPER(ret, "Could not create thread");
 

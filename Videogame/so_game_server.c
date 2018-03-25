@@ -10,42 +10,44 @@
 #include "world.h"
 #include "vehicle.h"
 #include "world_viewer.h"
+#include "utils.h"
+#include "common.h"
 
 
 void* thread_server_TCP(void* thread_server_TCP_args){
-	
+
 	//implementare protoccollo login e aggiungere il nuovo client al mondo ed alla lista dei client connessi
-	
-	
-	
-	
-	
+
+
+
+
+
 	//entrare nel loop di ricezione richiesta e comunicazione nuove connessioni / disconnessioni
-	
-	
-	
-	
-	
-	
-	
+
+
+
+
+
+
+
 }
 
 void* thread_server_UDP(void* thread_server_UDP_args){
-	
-	//ricevere tutte le intenzioni di movimento e salvarle nella lista dei movimenti da effettuare 
-	
-	
-	
-	
-	
-	//ad intervalli regolari integrare il mondo  svuorare lista movimenti ed inviare le nuove poszioni di tutti i clientn a tutti i client 
-	
-	
-	
-	
-	
-	
-	
+
+	//ricevere tutte le intenzioni di movimento e salvarle nella lista dei movimenti da effettuare
+
+
+
+
+
+	//ad intervalli regolari integrare il mondo  svuorare lista movimenti ed inviare le nuove poszioni di tutti i clientn a tutti i client
+
+
+
+
+
+
+
 }
 
 
@@ -83,93 +85,120 @@ int main(int argc, char **argv) {
   } else {
     printf("Fail! \n");
   }
-  
+
   //TODO creare lista di tutti i client connessi che verranno man mano aggiunti e rimossi
-  // deve contenere ID texture 
-  
+  // deve contenere ID texture
+
   int ret;
+
   //definisco descrittore server socket e struttura per bind
+
   int server_socket_UDP;
   struct server_addr_UDP {0};
-  //imposto i valori della struttura 
+
+  //imposto i valori della struttura
+
   server_addr_UDP.sin_addr.in_addr=INADDR_ANY;
   server_addr_UDP.sin_family=AF_INET;
   server_addr_UDP.sin_port=htons(SERVER_PORT_UDP);
+
   //creo la socket
+
   server_socket_UDP=socket(AF_INET,SOCK_DGRAM,0);
   ERROR_HELPER(server_socket_UDP,"error creating socket UDP \n");
+
   // faccio la bind
+
   ret=bind(server_socket_UDP,(struct sockaddr*) &server_addr_UDP,sizeof(struct sockaddr_in);
   ERROR_HELPER(ret,"error binding socket  UDP \n");
+
   //creo il thread che si occuperà di ricevere via UDP le forze e che invierà le nuove poiszioni dopo aver integrato il mondo
+
   pthread_t thread;
-	 
+
   thread_server_UDP_args* args=(thread_server_UDP_args*)malloc(sizeof(thread_server_UDP_args));
-   
-  //creo il thread	 
+
+  //creo il thread
+
   ret = pthread_create(&thread, NULL,thread_server_TCP,args);
   ERROR_HELPER(ret, "Could not create thread");
+
   // impongo di non aspettare terminazione in modo da non bloccare tutto il programma
+
   ret = pthread_detach(thread);
   ERROR_HELPER(ret, "Could not detach thread");
-  
-  
+
+
   //definisco descrittore server socket TCP
+
   int server_socket_TCP;
   struct server_addr {0};
+
   //imposto i valori delle struttura per accettare connessioni
+
   server_addr.sin_addr.in_addr=INADDR_ANY;
   server_addr.sin_family=AF_INET;
   server_addr.sin_port=htons(SERVER_PORT_TCP);
-  
+
   //creo la socket
+
   server_socket_TCP=socket(AF_INET,SOCK_STREAM,0);
   ERROR_HELPER(server_socket_TCP,"error creating socket \n");
-  // faccio la bind 
+
+  // faccio la bind
+
   ret=bind(server_socket_TCP,(struct sockaddr*) &server_addr,sizeof(struct sockaddr_in);
   ERROR_HELPER(ret,"error binding socket \n");
+
   // rendo la socket in grado di accettare connessioni
+
   ret=listen(server_socket_TCP,3);
   ERROR_HELPER(ret,"error setting socket to listen connections \n");
-  
+
   while(1){
+
 	 // definisco descrittore della socket con cui parlerò poi con ogni client
+
 	 struct sockaddr_in*  client_addr {0};
 	 int client_socket;
+
 	 // mi metto in attesa di connessioni
+
 	 client_socket=accept(server_socket_TCP,(struct sockaddr*) &client_addr,sizeof(struct sockadrr_in);
 	 ERROR_HELPER(client_socket,"error accepting connections \n");
+
 	 //lancio il thread che si occuperà di parlare poi con il singolo client che si è connesso
+
 	 pthread_t thread;
-	 
+
 	 thread_server_TCP_args* args=(thread_server_TCP_args*)malloc(sizeof(thread_server_TCP_args));
-	 
-	 
+
+
 	 ret = pthread_create(&thread, NULL,thread_server_TCP,args);
 	 ERROR_HELPER(ret, "Could not create thread");
 
 	 ret = pthread_detach(thread);
 	 ERROR_HELPER(ret, "Could not detach thread");
-	 
-	 
-	  
-	  
-	  
-	  
-	  
-	  
-	  
-	  
-	  
-	  
-	  
-	  
+
+
+
+
+
+
+
+
+
+
+
+
+
+
   }
-  
-  
-  
-   
-  
+
+
+
+
+
 
   // not needed here
   //   // construct the world
@@ -183,7 +212,7 @@ int main(int argc, char **argv) {
   // World_addVehicle(&world, vehicle);
 
 
-  
+
   // // initialize GL
   // glutInit(&argc, argv);
   // glutInitDisplayMode(GLUT_DOUBLE | GLUT_RGB | GLUT_DEPTH);
@@ -195,10 +224,10 @@ int main(int argc, char **argv) {
   // glutSpecialFunc(specialInput);
   // glutKeyboardFunc(keyPressed);
   // glutReshapeFunc(reshape);
-  
+
   // WorldViewer_init(&viewer, &world, vehicle);
 
-  
+
   // // run the main GL loop
   // glutMainLoop();
 
@@ -209,5 +238,5 @@ int main(int argc, char **argv) {
 
   // // cleanup
   // World_destroy(&world);
-  return 0;             
+  return 0;
 }
