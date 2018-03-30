@@ -94,7 +94,7 @@ PacketHeader* Packet_deserialize(const char* buffer, int size){
       return (PacketHeader*) world_packet;
     }
     case VehicleUpdate:
-    { 
+    {
       VehicleUpdatePacket* vehicle_packet=(VehicleUpdatePacket*) malloc(sizeof(VehicleUpdatePacket));
       memcpy(vehicle_packet, buffer, sizeof(VehicleUpdatePacket));
       return(PacketHeader*) vehicle_packet;
@@ -132,3 +132,4 @@ void Packet_free(PacketHeader* h) {
   }
   }
 }
+

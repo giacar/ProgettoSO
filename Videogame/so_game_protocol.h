@@ -61,11 +61,17 @@ typedef struct {
   float theta;
 } ClientUpdate;
 
+typedef struct {
+  int quit;
+  char[17] quit_command;
+  int socket_desc_TCP;
+}QuitPacket;
+
 // server world update, send by server (UDP)
 typedef struct {
   PacketHeader header;
   int num_vehicles;
-  ClientUpdate[20] updates;
+  ClientUpdate* updates;
 } WorldUpdatePacket;
 
 typedef struct thread_client_args{
@@ -78,6 +84,11 @@ typedef struct thread_client_args{
 
 }thread_client_args;
 
+typedef struct NodoStringa{
+    char[1024] current;
+    NodoStringa* next;
+} NodoStringa;
+
 
 // converts a well formed packet into a string in dest.
 // returns the written bytes
@@ -89,3 +100,4 @@ PacketHeader* Packet_deserialize(const char* buffer, int size);
 
 // deletes a packet, freeing memory
 void Packet_free(PacketHeader* h);
+

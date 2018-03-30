@@ -19,11 +19,50 @@ WorldViewer viewer;
 World world;
 Vehicle* vehicle; // The vehicle
 int ret;
-boolean quit;
+QuitPacket quit_packet;
 
 void gestione_quit(){
-    printf("Caught quit signal");
-    quit = true;
+
+    //catturato il segnale di quit, inviamo una stringa con dentro "quit" al server, che la riceve ed elimina il client dalla lista dei connessi
+    //(di fatto, il server prende lo stato del client contenuto nella lista di client_connected e lo sposta alla fine di client_disonnected)
+    while (1){
+        printf("Caught quit signal");
+        char[17] quit_command = quit_packet -> quit_command;
+        socket_desc_TCP = quit_packet -> socket_desc_TCP;
+
+        quit_command = "quit";
+        int msg_len = strlen(quit_command);
+        quit_command[msg_len] = '\0';
+
+        //invia il messaggio di quit al server e attende un ack
+
+        while ((ret = send(socket_desc_TCP, quit_command, msg_len, 0) < 0)){
+            if (errno == EINTR) continue;
+            ERROR_HELPER(-1, "Could not send quit command to server");
+        }
+
+        char[17] ack;
+        while ((ret = recv(socket_desc_TCP, ack, msg_len, 0) < 0)){
+            if (errno == EINTR) continue;
+            ERROR_HELPER(-1, "Could not receive ack from server");
+        }
+
+        ack[msg_len] = '\0';
+
+        if (!strcmp(ack, "ok")) {
+            printf("Error in quit! Trying again...");
+            continue;
+        }
+
+        else{
+            quit_packet -> quit = 1;
+            printf("Success! Goodbye");
+            break;
+        }
+    }
+
+
+
 }
 
 void* thread_listener_tcp(void* client_args){
@@ -53,6 +92,52 @@ void* thread_listener_tcp(void* client_args){
     Vehicle vehicle=arg->v
     struct sockaddr_in server_UDP = arg->server_addr_UDP;
 
+    //Ricezione degli ImagePacket contenenti id e texture di tutti i client presenti nel mondo
+    char[1024] user;
+    int msg_len;
+
+    char* finish_command = FINISH_COMMAND;
+    size_t finish_command_len = strlen(finish_command);
+
+    while (1){
+
+        //Il server crea una lista collegata di stringhe che ha serializzato da pacchetti e ne invia una per volta, quando riceve quella con dentro scritto
+        //"Finish" possiamo fermarci
+
+        while ((ret = recv(socket_desc_TCP, user, msg_len, 0)) < 0){
+            if (errno == EINTR) continue;
+            ERROR_HELPER(-1, "Could not receive users already in world");
+        }
+
+        if (ret == finish_command_len && !memcmp(user, finish_command, finish_command_len)) break;
+
+
+        // to send its texture
+        // sent from server to client
+        //       (with type=PostTexture and id=0) to assign the surface texture
+        //       (with type=PostElevation and id=0) to assign the surface texture
+        //       (with type=PostTexture and id>0) to assign the  texture to vehicle id
+
+        /**typedef struct {
+          PacketHeader header;
+          int id;
+          Image* image;
+        } ImagePacket;**/
+
+        ImagePacket* client = Packet_deserialize(&user, msg_len);
+        int id = client->id;
+        if (client->image == NULL){
+            Vehicle* v = World_getVehicle(&w, id);
+            World_detachVehicle(&w, v);
+        }
+        else{
+            Vehicle* v = (Vehicle*) malloc(sizeof(Vehicle));
+            Vehicle_init(v, &world, id, client->image);
+        }
+    }
+
+
+    //DISCONNESSIONE
 	struct sigaction sa;
 
     //setup the signal handler
@@ -68,6 +153,7 @@ void* thread_listener_tcp(void* client_args){
         //intercept SIGQUIT
 
         if (sigaction(SIGQUIT, &sa, NULL) == -1) ERROR_HELPER(-1, "Error: cannot handle SIQUIT");
+
     }
 
 
@@ -104,8 +190,8 @@ void* thread_listener_udp(void* client_args){   //todo
 
     /**
     Ciclo while che opera fino a quando il client è in funzione. Quando non deve più lavorare, riceve un segnale di quit (DA IMPLEMENTARE)
-    *//
-    while(!quit){
+    **/
+    while(quit_packet -> quit == 0){
 
     //creazione di un pacchetto di update personale da inviare al server.
         VehicleUpdatePacket* update = (VehicleUpdatePacket*) malloc(sizeof(VehicleUpdatePacket));
@@ -138,7 +224,7 @@ void* thread_listener_udp(void* client_args){   //todo
 
         WorldUpdatePacket* wup = Packet_deserialize(world_update, world_update_len);
         int num_vehicles = wup->num_vehicles;
-        ClientUpdate[20] client_update = wup->updates; //VETTOREEEEEEEEE di client update
+        ClientUpdate* client_update = wup->updates; //VETTOREEEEEEEEE di client update
 
         int i;
         for(i=0;i<num_vehicles;i++){
@@ -150,13 +236,17 @@ void* thread_listener_udp(void* client_args){   //todo
             int id = update->id;
             float x = update->x;
             float y = update->y;
+            float z = update->camera_to_world[14];
             float theta = update->theta;
 
             //Aggiornamento veicolo
             Vehicle* v = World_getVehicle(&world, id);
             v->x = x;
             v->y = y;
+            v->z = camera_to_world[14];
             v->theta = theta;
+
+            printf("Data update!");
 
         }
 
@@ -316,9 +406,10 @@ int main(int argc, char **argv) {
   ret = bind(socket_desc_UDP, (struct sockaddr*) &server_addr_UDP, sizeof(struct sockaddr_in));
   ERROR_HELPER(ret, "Could not connect to socket (udp)");
 
-  //impostiamo a false la variabile quit, che ci servirà per far terminare il client in maniera corretta
+  //inizializziamo il pacchetto di quit, con variabile int quit settata a 0
+  quit_packet -> quit = 0;
+  quit_packet -> socket_desc_TCP = socket_desc;
 
-  quit = false;
 
   //requesting and receving the ID
   IdPacket* request_id=(IdPacket*)malloc(sizeof(IdPacket));
