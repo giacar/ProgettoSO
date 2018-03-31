@@ -1,10 +1,10 @@
-
 #include <GL/glut.h>
 #include <math.h>
 #include <string.h>
 #include <stdio.h>
 #include <unistd.h>
 #include <signal.h>
+#include <semaphore.h>
 
 #include "image.h"
 #include "surface.h"
@@ -19,7 +19,10 @@ WorldViewer viewer;
 World world;
 Vehicle* vehicle; // The vehicle
 int ret;
-QuitPacket quit_packet;
+QuitPacket quit_packet;	// packet to handle the exit of client
+sem_t sem_quit_handle;	// handles the quit_packet manipulation which is in critical section
+char[64] username;
+char[64] password;
 
 void gestione_quit(){
 
@@ -27,8 +30,15 @@ void gestione_quit(){
     //(di fatto, il server prende lo stato del client contenuto nella lista di client_connected e lo sposta alla fine di client_disonnected)
     while (1){
         printf("Caught quit signal");
+        
+        ret = sem_wait(&sem_quit_handle);
+        ERROR_HELPER(ret, "sem_wait failed on gestione_quit");
+        // CS
         char[17] quit_command = quit_packet -> quit_command;
         socket_desc_TCP = quit_packet -> socket_desc_TCP;
+        // CS
+        ret = sem_post(&sem_quit_handle);
+        ERROR_HELPER(ret, "sem_post failed on gestione_quit");
 
         quit_command = "quit";
         int msg_len = strlen(quit_command);
@@ -55,18 +65,23 @@ void gestione_quit(){
         }
 
         else{
+        	ret = sem_wait(&sem_quit_handle);
+        	ERROR_HELPER(ret, "sem_wait failed on gestione_quit");
+
             quit_packet -> quit = 1;
+            
+            ret = sem_post(&sem_quit_handle);
+            ERROR_HELPER(ret, "sem_post failed on gestione_quit");
+
             printf("Success! Goodbye");
             break;
         }
     }
 
-
-
 }
 
 void* thread_listener_tcp(void* client_args){
-	    /**COMUNICAZIONE TCP**/
+	/**COMUNICAZIONE TCP**/
     /**
 
     Al momento del login il server manda sul thread TCP ImagePackets
@@ -156,14 +171,6 @@ void* thread_listener_tcp(void* client_args){
 
     }
 
-
-
-
-
-
-
-
-
 }
 
 void* thread_listener_udp(void* client_args){   //todo
@@ -191,7 +198,19 @@ void* thread_listener_udp(void* client_args){   //todo
     /**
     Ciclo while che opera fino a quando il client è in funzione. Quando non deve più lavorare, riceve un segnale di quit (DA IMPLEMENTARE)
     **/
-    while(quit_packet -> quit == 0){
+    while(1){
+    	// use of critical section implementation for instruction: while(quit_packet -> quit == 0){
+    	unsigned exit_dute = 0;
+
+    	ret = sem_wait(&sem_quit_handle);
+    	ERROR_HELPER(ret, "sem_wait failed in thread_listener_udp");
+
+    	if (quit_packet -> quit != 0) exit_dute = 1;
+
+    	ret = sem_post(&sem_quit_handle);
+    	ERROR_HELPER(ret, "sem_post failed in thread_listener_udp");
+
+    	if (exit_dute) break;
 
     //creazione di un pacchetto di update personale da inviare al server.
         VehicleUpdatePacket* update = (VehicleUpdatePacket*) malloc(sizeof(VehicleUpdatePacket));
@@ -213,7 +232,7 @@ void* thread_listener_udp(void* client_args){   //todo
         char[1024] world_update;
         int world_update_len;
 
-        while ((ret = recvfrom(socket_UDP, world_update, world_update_len, 0 (struct sockaddr*) server_UDP, sizeof(server_UDP)) < 0)){
+        while ((ret = recvfrom(socket_UDP, world_update, world_update_len, 0, (struct sockaddr*) server_UDP, sizeof(server_UDP)) < 0)){
             if (errno == EINTR) continue;
             ERROR_HELPER(-1, "Could not receive num vehicles from server");
         }
@@ -352,20 +371,8 @@ int main(int argc, char **argv) {
     printf("Fail! \n");
   }
 
-  /**LOGIN**/
-  /** Client inserisce username e password appena si connette:
-   *    -se utente non esiste allora i dati che ha inserito vengono usati per registrare l'utente
-   * [TODO]
-   **/
+	
 
-  /**   -se utente esiste ma la password non è corretta, si apre un while nel quale l'utente può inserire la password corretta
-   * [TODO]
-   **/
-
-  /**   -se utente esiste e la password è corretta, allora invia al server un richiesta di tutti i dati salvati nella precedente sessione e il server
-   *    risponde con tali dati
-   * [TODO]
-   **/
 
   Image* my_texture_for_server = my_texture;
   // todo: connect to the server
@@ -406,10 +413,90 @@ int main(int argc, char **argv) {
   ret = bind(socket_desc_UDP, (struct sockaddr*) &server_addr_UDP, sizeof(struct sockaddr_in));
   ERROR_HELPER(ret, "Could not connect to socket (udp)");
 
-  //inizializziamo il pacchetto di quit, con variabile int quit settata a 0
+  //inizializziamo il pacchetto di quit, con variabile int quit settata a 0, ovviamente all'inizio non è in sezione critica
   quit_packet -> quit = 0;
   quit_packet -> socket_desc_TCP = socket_desc;
 
+	/**LOGIN**/
+	/** Client inserisce username e password appena si connette:
+	*   -se utente non esiste allora i dati che ha inserito vengono usati per registrare l'utente
+	*	-variabile login_state ha 3 valori 0 se nuovo utente registrato, 1 se già esistente e -1 se password sbagliata
+	* [TOCOMPLETE]
+	**/
+
+  	int login_state;		// in this variabile there is the login's state
+  	int user_length;
+  	int pass_length;
+
+	printf("LOGIN\n Please enter username: ");
+	scanf("%s", &username);
+	user_length = strlen(&username);
+	
+	while((ret = send(socket_desc, &username, user_length, 0)) < 0) {
+		if (errno == EINTR) continue;
+		ERROR_HELPER(ret, "Failed to send login data");
+	}
+	while((ret = recv(socket_desc, &login_state, 4, 0)) < 0) {
+		if (errno == EINTR) continue;
+		ERROR_HELPER(ret, "Failed to update login's state");
+	}
+
+	if (login_state == 0) printf("\nWelcome %s.", &username);
+	else printf("\nWelcome back %s.", &username);
+	
+	printf(" Please enter password: ");
+	scanf("%s", &password);
+	printf("\n");
+	pass_length = strlen(&password);
+	
+	while((ret = send(socket_desc, password, pass_length, 0)) < 0) {
+		if (errno == EINTR) continue;
+		ERROR_HELPER(ret, "Failed to send login data");
+	}
+	while((ret = recv(socket_desc, &login_state, 4, 0)) < 0) {
+		if (errno == EINTR) continue;
+		ERROR_HELPER(ret, "Failed to update login's state");
+	}
+
+	while (login_state == -1) {
+		printf("Incorrect Password, please insert it again: ");
+		scanf("%s", &password);
+		printf("\n");
+		while((ret = send(socket_desc, password, login_length, 0)) < 0) {
+			if (errno == EINTR) continue;
+			ERROR_HELPER(ret, "Failed to send login data");
+		}
+
+		while((ret = recv(socket_desc, &login_state, 1, 0)) < 0) {
+			if (errno == EINTR) continue;
+			ERROR_HELPER(ret, "Failed to receive login's state");
+		}
+	}
+
+	if (login_state == 0) printf("You're signed up with user: %s, welcome to the game!\n", &username);
+
+  	/** Se utente esiste e la password è corretta, allora invia al server un richiesta di tutti i dati salvati nella 
+  	*	precedente sessione e il server risponde con tali dati
+   	*	[TODO]
+   	**/
+
+   	else if (login_state == 1) {
+   		printf("Login success, welcome back %s\n", &username);
+   		
+   		// invio richiesta di ripristino
+   		char[] req = "Respawn\n";
+   		int req_length = strlen(req);
+   		
+		while((ret = send(socket_desc, req, req_length, 0)) < 0) {
+			if (errno == EINTR) continue;
+			ERROR_HELPER(ret, "Failed to send login data");
+		}
+
+		// ricezione stato precedente
+		// [TODO]
+   	}
+
+  }
 
   //requesting and receving the ID
   IdPacket* request_id=(IdPacket*)malloc(sizeof(IdPacket));
@@ -423,7 +510,7 @@ int main(int argc, char **argv) {
   size_t msg_len;
 
 
-    while ((ret = send(socket_desc, idPacket_request, idPacket_request_len, 0)) < 0){
+  while ((ret = send(socket_desc, idPacket_request, idPacket_request_len, 0)) < 0){
     if (errno == EINTR) continue;
     ERROR_HELPER(-1, "Could not send id request  to socket");
   }
@@ -551,6 +638,10 @@ int main(int argc, char **argv) {
   pthread_t thread_tcp;
   pthread_t thread_udp;
 
+  // create the semaphore to manipulate the quit_packet in critical section
+  ret = sem_init(&sem_quit_handle, 0, 1);
+  ERROR_HELPER(ret, "Could not create semaphore");
+
   ret = pthread_create(&thread_tcp, NULL, thread_listener_tcp,args);
   ERROR_HELPER(ret, "Could not create thread");
 
@@ -567,5 +658,11 @@ int main(int argc, char **argv) {
 
   // cleanup
   World_destroy(&world);
+  
+  /* Devo distruggere il semaforo ma non posso farlo successivamente a causa delle detach
+  ret = sem_destroy(&sem_quit_handle);
+  ERROR_HELPER(ret, "Could not destroy the semaphore");
+  */
+
   return 0;
 }

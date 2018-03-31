@@ -1,9 +1,9 @@
-
 // #include <GL/glut.h> // not needed here
 #include <math.h>
 #include <string.h>
 #include <stdio.h>
 #include <unistd.h>
+#include <semaphore.h>
 
 #include "image.h"
 #include "surface.h"
@@ -13,10 +13,169 @@
 #include "utils.h"
 #include "common.h"
 
+user_table[MAX_USER_NUM] utenti;
+// Creare lista di tutti i client connessi che verranno man mano aggiunti e rimossi
+// deve contenere ID texture. Stessa cosa vale con una lista di client disconnessi
+// in modo da ripristinare lo stato in caso di un nuovo login
+ListHead *online_client;
+ListHead *offline_client;
+
+sem_t sem_onlinelist;
+sem_t sem_offlinelist;
+sem_t sem_utenti;
+
+
+
 
 void* thread_server_TCP(void* thread_server_TCP_args){
 
+	int ret, bytes_read = 0;
+
 	//implementare protoccollo login e aggiungere il nuovo client al mondo ed alla lista dei client connessi
+	thread_server_TCP_args *arg = (thread_server_TCP_args *)args;
+
+	// Login
+	char[64] user_att;
+	char[64] pass_att;
+	char[64] pass_giusta;
+	int login_reply;
+	int id_utente = -1;
+
+	// Ricezione dell'user
+	while (1) {
+		ret = recv(arg->socket_desc_TCP_client, user_att+bytes_read, 1, 0);
+
+		if (ret == -1 && errno == EINTR) continue;
+        ERROR_HELPER(ret, "Failed to read username from client");
+		
+		if (user_att[bytes_read] == '\n') {
+			bytes_read++;
+			break;
+		}
+	}
+
+	sem_wait(&sem_utenti);
+
+	// Verifico se user già registrato
+	int idx = -1;
+	for (int i = 0; utenti[i] != NULL; i++) {
+		if (user_att == utenti[i].username) {
+			idx = i;
+		}
+	}
+
+	// Nuovo user
+	if (idx == -1) {
+		// inserisco user nel primo slot libero
+		int i;
+		for (i = 0; i < MAX_USER_NUM && utenti[i].username != NULL; i++);
+		if (i >= MAX_USER_NUM) ERROR_HELPER(-1, "Slot utenti terminati");
+		idx = i;
+		utenti[idx].username = user_att;
+		
+		sem_post(&sem_utenti);
+		
+		// invio al client che è un nuovo user
+		login_reply = 0;
+		while ((ret = send(arg->socket_desc_TCP_client, &login_reply, 4, 0)) < 0) {
+			if (errno == EINTR) continue;
+			ERROR_HELPER(-1, "Failed to send login_reply to client");
+		}
+		
+		//ricezione password
+		bytes_read = 0;
+		while (1) {
+			ret = recv(arg->socket_desc_TCP_client, pass_att+bytes_read, 1, 0);
+
+			if (ret == -1 && errno == EINTR) continue;
+		    ERROR_HELPER(ret, "Failed to read password from client");
+			
+			if (user_att[bytes_read] == '\n') {
+				bytes_read++;
+				break;
+			}
+		}
+
+		// registrazione password ed id
+		sem_wait(&sem_utenti);
+		
+		utenti[idx].password = pass_att;
+		utenti[idx].id = idx;
+
+		sem_post(&sem_utenti);
+
+		id_utente = idx;
+	}
+
+	// Già registrato
+	else if (idx > -1) {
+		pass_giusta = utenti[idx].password;
+
+		sem_post(&sem_utenti);
+
+		// invio al client che è già registrato
+		login_reply = 1;
+		while ((ret = send(arg->socket_desc_TCP_client, &login_reply, 4, 0)) < 0) {
+			if (errno == EINTR) continue;
+			ERROR_HELPER(-1, "Failed to send login_reply to client");
+		}
+		
+		//ricezione password
+		do {
+			bytes_read = 0;
+			while (1) {
+				ret = recv(arg->socket_desc_TCP_client, pass_att+bytes_read, 1, 0);
+
+				if (ret == -1 && errno == EINTR) continue;
+			    ERROR_HELPER(ret, "Failed to read password from client");
+				
+				if (user_att[bytes_read] == '\n') {
+					bytes_read++;
+					break;
+				}
+			}
+
+			// password giusta
+			if (pass_att == pass_giusta) {
+				login_reply = 1;
+				while ((ret = send(arg->socket_desc_TCP_client, &login_reply, 4, 0)) < 0) {
+					if (errno == EINTR) continue;
+					ERROR_HELPER(-1, "Failed to send login_reply to client");
+				}
+				break;
+			}
+
+			else {
+				login_reply = -1;
+				while ((ret = send(arg->socket_desc_TCP_client, &login_reply, 4, 0)) < 0) {
+					if (errno == EINTR) continue;
+					ERROR_HELPER(-1, "Failed to send login_reply to client");
+				}
+			}
+		} while (pass_att != pass_giusta);
+
+		// ricezione richiesta di respawn
+		
+		char[256] req;
+
+		bytes_read = 0;
+		while (1) {
+			ret = recv(arg->socket_desc_TCP_client, req+bytes_read, 1, 0);
+
+			if (ret == -1 && errno == EINTR) continue;
+		    ERROR_HELPER(ret, "Failed to read password from client");
+			
+			if (user_att[bytes_read] == '\n') {
+				bytes_read++;
+				break;
+			}
+		}
+
+		if (req == "Respawn\n") {
+			// invio dati per il respawn 
+			// [TODO]
+		}
+	}
 
 
 
@@ -86,10 +245,33 @@ int main(int argc, char **argv) {
     printf("Fail! \n");
   }
 
-  //TODO creare lista di tutti i client connessi che verranno man mano aggiunti e rimossi
-  // deve contenere ID texture
+  // Inizializzo le due liste dei client connessi e disconnessi
 
-  int ret;
+  online_client = (ListHead *)malloc(sizeof(ListHead));
+  if (online_client == NULL) ERROR_HELPER(-1, "Failed to allocate list of online clients");
+
+  offline_client = (ListHead *)malloc(sizeof(ListHead));
+  if (offline_client == NULL) ERROR_HELPER(-1, "Failed to allocate list of offline clients");
+
+	int ret;
+
+	// inizializzo i semafori di mutex per online client e offline client list e per tabella utenti
+
+	ret = sem_init(&sem_onlinelist, 1, 0);
+	ERROR_HELPER(ret, "Failed to initialization of sem_onlinelist");
+
+	ret = sem_init(&sem_offlinelist, 1, 0);
+	ERROR_HELPER(ret, "Failed to initialization of sem_offlinelist");
+
+	ret = sem_init(&sem_utenti, 1, 0);
+	ERROR_HELPER(ret, "Failed to initialization of sem_utenti");
+
+	// inizializzo array di utenti
+	for (int i = 0; i < MAX_USER_NUM; i++) {
+		utenti[i].username = NULL;
+		utenti[i].password = NULL;
+		utenti[i].id = -1;
+	}
 
   //definisco descrittore server socket e struttura per bind
 
@@ -172,6 +354,8 @@ int main(int argc, char **argv) {
 	 pthread_t thread;
 
 	 thread_server_TCP_args* args=(thread_server_TCP_args*)malloc(sizeof(thread_server_TCP_args));
+	 args->socket_desc_TCP_client = client_socket;
+	 args->list = online_client;
 
 
 	 ret = pthread_create(&thread, NULL,thread_server_TCP,args);

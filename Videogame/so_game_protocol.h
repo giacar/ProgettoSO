@@ -61,6 +61,7 @@ typedef struct {
   float theta;
 } ClientUpdate;
 
+// quit packet structure used by client to exit
 typedef struct {
   int quit;
   char[17] quit_command;
