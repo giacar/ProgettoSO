@@ -15,7 +15,7 @@
 #define SERVER_PORT_TCP    2015
 #define SERVER_PORT_UDP    2016
 #define FINISH_COMMAND     "Finish"
-#define OK_COMMAND         "ok"
+//#define OK_COMMAND         "ok"
 #define MAX_USER_NUM	   20
 
 #endif

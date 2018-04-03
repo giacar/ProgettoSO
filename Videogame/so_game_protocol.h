@@ -62,11 +62,11 @@ typedef struct {
 } ClientUpdate;
 
 // quit packet structure used by client to exit
-typedef struct {
+/**typedef struct {
   int quit;
   char[17] quit_command;
   int socket_desc_TCP;
-}QuitPacket;
+}QuitPacket;**/
 
 // server world update, send by server (UDP)
 typedef struct {

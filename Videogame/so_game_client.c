@@ -5,6 +5,7 @@
 #include <unistd.h>
 #include <signal.h>
 #include <semaphore.h>
+#include <errno.h>
 
 #include "image.h"
 #include "surface.h"
@@ -19,18 +20,22 @@ WorldViewer viewer;
 World world;
 Vehicle* vehicle; // The vehicle
 int ret;
-QuitPacket quit_packet;	// packet to handle the exit of client
-sem_t sem_quit_handle;	// handles the quit_packet manipulation which is in critical section
+//QuitPacket quit_packet;	// packet to handle the exit of client
+//sem_t sem_quit_handle;	// handles the quit_packet manipulation which is in critical section
 char[64] username;
 char[64] password;
 
+//se recv() restituisce 0 o un errore di socket (ENOTCONN et similia), vuol dire che la comunicazione è stata chiusa. Idem per recvfrom
+//send() invece, in caso di errore (ENOTCONN et similia), restituisce -1 e setta errno a un certo valore. Idem per sendto
+
+/**
 void gestione_quit(){
 
     //catturato il segnale di quit, inviamo una stringa con dentro "quit" al server, che la riceve ed elimina il client dalla lista dei connessi
     //(di fatto, il server prende lo stato del client contenuto nella lista di client_connected e lo sposta alla fine di client_disonnected)
     while (1){
         printf("Caught quit signal");
-        
+
         ret = sem_wait(&sem_quit_handle);
         ERROR_HELPER(ret, "sem_wait failed on gestione_quit");
         // CS
@@ -69,7 +74,7 @@ void gestione_quit(){
         	ERROR_HELPER(ret, "sem_wait failed on gestione_quit");
 
             quit_packet -> quit = 1;
-            
+
             ret = sem_post(&sem_quit_handle);
             ERROR_HELPER(ret, "sem_post failed on gestione_quit");
 
@@ -78,7 +83,7 @@ void gestione_quit(){
         }
     }
 
-}
+}**/
 
 void* thread_listener_tcp(void* client_args){
 	/**COMUNICAZIONE TCP**/
@@ -121,6 +126,10 @@ void* thread_listener_tcp(void* client_args){
 
         while ((ret = recv(socket_desc_TCP, user, msg_len, 0)) < 0){
             if (errno == EINTR) continue;
+            else if (errno == ENOTCONN) {
+                printf("Server closed connection, could not receive users already in world. Goodbye!");
+                exit(0);
+            }
             ERROR_HELPER(-1, "Could not receive users already in world");
         }
 
@@ -151,7 +160,7 @@ void* thread_listener_tcp(void* client_args){
         }
     }
 
-
+    /**
     //DISCONNESSIONE
 	struct sigaction sa;
 
@@ -169,7 +178,7 @@ void* thread_listener_tcp(void* client_args){
 
         if (sigaction(SIGQUIT, &sa, NULL) == -1) ERROR_HELPER(-1, "Error: cannot handle SIQUIT");
 
-    }
+    }**/
 
 }
 
@@ -199,6 +208,8 @@ void* thread_listener_udp(void* client_args){   //todo
     Ciclo while che opera fino a quando il client è in funzione. Quando non deve più lavorare, riceve un segnale di quit (DA IMPLEMENTARE)
     **/
     while(1){
+
+        /**
     	// use of critical section implementation for instruction: while(quit_packet -> quit == 0){
     	unsigned exit_dute = 0;
 
@@ -211,6 +222,7 @@ void* thread_listener_udp(void* client_args){   //todo
     	ERROR_HELPER(ret, "sem_post failed in thread_listener_udp");
 
     	if (exit_dute) break;
+        **/
 
     //creazione di un pacchetto di update personale da inviare al server.
         VehicleUpdatePacket* update = (VehicleUpdatePacket*) malloc(sizeof(VehicleUpdatePacket));
@@ -220,10 +232,14 @@ void* thread_listener_udp(void* client_args){   //todo
         update->header->type = VehicleUpdate;
 
         char[1024] vehicle_update;
-        int vehicle_update_len = Packet_serialize(vehicle_update, update);
+        int vehicle_update_len = Packet_serialize(vehicle_update, &(update->header));
 
         while ((ret = sendto(socket_UDP, vehicle_update, vehicle_update_len, 0, (struct sockaddr*) server_UDP, sizeof(server_UDP)) < 0)){
             if (errno == EINTR) continue;
+            else if (errno == ENOTCONN) {
+                printf("Server closed connection, could not send my update. Goodbye!");
+                exit(0);
+            }
             ERROR_HELPER(-1, "Could not send vehicle updates to server");
         }
 
@@ -234,6 +250,10 @@ void* thread_listener_udp(void* client_args){   //todo
 
         while ((ret = recvfrom(socket_UDP, world_update, world_update_len, 0, (struct sockaddr*) server_UDP, sizeof(server_UDP)) < 0)){
             if (errno == EINTR) continue;
+            else if (errno == ENOTCONN) {
+                printf("Server closed connection, could not receive world update. Goodbye!");
+                exit(0);
+            }
             ERROR_HELPER(-1, "Could not receive num vehicles from server");
         }
 
@@ -371,7 +391,7 @@ int main(int argc, char **argv) {
     printf("Fail! \n");
   }
 
-	
+
 
 
   Image* my_texture_for_server = my_texture;
@@ -413,9 +433,11 @@ int main(int argc, char **argv) {
   ret = bind(socket_desc_UDP, (struct sockaddr*) &server_addr_UDP, sizeof(struct sockaddr_in));
   ERROR_HELPER(ret, "Could not connect to socket (udp)");
 
+  /**
   //inizializziamo il pacchetto di quit, con variabile int quit settata a 0, ovviamente all'inizio non è in sezione critica
   quit_packet -> quit = 0;
   quit_packet -> socket_desc_TCP = socket_desc;
+  **/
 
 	/**LOGIN**/
 	/** Client inserisce username e password appena si connette:
@@ -428,33 +450,53 @@ int main(int argc, char **argv) {
   	int user_length;
   	int pass_length;
 
-	printf("LOGIN\n Please enter username: ");
-	scanf("%s", &username);
-	user_length = strlen(&username);
-	
+    while (1){
+        printf("LOGIN\n Please enter username: ");
+        scanf("%s", &username);
+        user_length = strlen(&username);
+        if (user_length >= 64) printf("ERROR! username too length, please retry.");
+        else break;
+    }
+
 	while((ret = send(socket_desc, &username, user_length, 0)) < 0) {
 		if (errno == EINTR) continue;
+        else if (errno == ENOTCONN) {
+            printf("Server closed connection, cannot send username. Goodbye!");
+            exit(0);
+        }
 		ERROR_HELPER(ret, "Failed to send login data");
 	}
 	while((ret = recv(socket_desc, &login_state, 4, 0)) < 0) {
 		if (errno == EINTR) continue;
+        else if (errno == ENOTCONN) {
+            printf("Server closed connection, cannot receive login state. Goodbye!");
+            exit(0);
+        }
 		ERROR_HELPER(ret, "Failed to update login's state");
 	}
 
 	if (login_state == 0) printf("\nWelcome %s.", &username);
 	else printf("\nWelcome back %s.", &username);
-	
+
 	printf(" Please enter password: ");
 	scanf("%s", &password);
 	printf("\n");
 	pass_length = strlen(&password);
-	
+
 	while((ret = send(socket_desc, password, pass_length, 0)) < 0) {
 		if (errno == EINTR) continue;
+        else if (errno == ENOTCONN) {
+            printf("Server closed connection, could not send password. Goodbye!");
+            exit(0);
+        }
 		ERROR_HELPER(ret, "Failed to send login data");
 	}
 	while((ret = recv(socket_desc, &login_state, 4, 0)) < 0) {
 		if (errno == EINTR) continue;
+        else if (errno == ENOTCONN) {
+            printf("Server closed connection, could not receiver login's state. Goodbye!");
+            exit(0);
+        }
 		ERROR_HELPER(ret, "Failed to update login's state");
 	}
 
@@ -464,31 +506,43 @@ int main(int argc, char **argv) {
 		printf("\n");
 		while((ret = send(socket_desc, password, login_length, 0)) < 0) {
 			if (errno == EINTR) continue;
+            else if (errno == ENOTCONN) {
+                printf("Server closed connection, could not send password. Goodbye!");
+                exit(0);
+            }
 			ERROR_HELPER(ret, "Failed to send login data");
 		}
 
 		while((ret = recv(socket_desc, &login_state, 1, 0)) < 0) {
 			if (errno == EINTR) continue;
+            else if (errno == ENOTCONN) {
+                printf("Server closed connection, could not receiver login's state. Goodbye!");
+                exit(0);
+            }
 			ERROR_HELPER(ret, "Failed to receive login's state");
 		}
 	}
 
 	if (login_state == 0) printf("You're signed up with user: %s, welcome to the game!\n", &username);
 
-  	/** Se utente esiste e la password è corretta, allora invia al server un richiesta di tutti i dati salvati nella 
+  	/** Se utente esiste e la password è corretta, allora invia al server un richiesta di tutti i dati salvati nella
   	*	precedente sessione e il server risponde con tali dati
    	*	[TODO]
    	**/
 
    	else if (login_state == 1) {
    		printf("Login success, welcome back %s\n", &username);
-   		
+
    		// invio richiesta di ripristino
    		char[] req = "Respawn\n";
    		int req_length = strlen(req);
-   		
+
 		while((ret = send(socket_desc, req, req_length, 0)) < 0) {
 			if (errno == EINTR) continue;
+            else if (errno == ENOTCONN) {
+                printf("Server closed connection, could not send respawn request. Goodbye!");
+                exit(0);
+            }
 			ERROR_HELPER(ret, "Failed to send login data");
 		}
 
@@ -506,17 +560,25 @@ int main(int argc, char **argv) {
 
   char idPacket_request[1024];
   char idPacket[1024];
-  size_t idPacket_request_len = Packet_serialize(&idPacket_request,request_id);
+  size_t idPacket_request_len = Packet_serialize(&idPacket_request,&(request_id->header));
   size_t msg_len;
 
 
   while ((ret = send(socket_desc, idPacket_request, idPacket_request_len, 0)) < 0){
     if (errno == EINTR) continue;
+    else if (errno == ENOTCONN) {
+        printf("Server closed connection, could not send id request. Goodbye!");
+        exit(0);
+    }
     ERROR_HELPER(-1, "Could not send id request  to socket");
   }
 
   while ((ret = recv(socket_desc, idPacket, msg_len, 0)) < 0){
     if (errno == EINTR) continue;
+    else if (errno == ENOTCONN) {
+        printf("Server closed connection, could not receive id. Goodbye");
+        exit(0);
+    }
     ERROR_HELPER(-1, "Could not read id from socket");
   }
 
@@ -536,11 +598,15 @@ int main(int argc, char **argv) {
   texture->id=id->id;
   texture->image=&my_texture_for_server;
 
-  size_t texture_for_server_len = Packet_serialize(&texture_for_server, my_texture);
+  size_t texture_for_server_len = Packet_serialize(&texture_for_server, &(my_texture->header));
 
 
   while ((ret = send(socket_desc, texture_for_server, texture_for_server_len, 0) < 0){
       if (errno == EINTR) continue;
+      else if (errno == ENOTCONN) {
+          printf("Server closed connection, could non send texture_for_server. Goodbye!");
+          exit(0);
+      }
       ERROR_HELPER(-1, "Could not send my texture for server");
   }
   // receving my texture from server
@@ -549,13 +615,17 @@ int main(int argc, char **argv) {
 
     while ((ret = recv(socket_desc, my_texture_from_server, msg_len, 0)) < 0){
       if (errno == EINTR) continue;
+      else if (errno == ENOTCONN) {
+          printf("Server closed connection, could not receive my_texture_from_server. Goodbye!");
+          exit(0);
+      }
       ERROR_HELPER(-1, "Could not read my texture from socket");
   }
 
   my_texture_from_server[msg_len] = '\0';
 
   ImagePacket* my_texture_received=Packet_deserialize(&my_texture_from_server,msg_len);
-  if(my_texture_received!=my_texture) ERROR_HELPER(-1,"error in communication \n");
+  if(my_texture_received!=my_texture) ERROR_HELPER(-1,"error in communication: texture not matching! \n");
 
 
   //requesting and receving elevation map
@@ -566,15 +636,23 @@ int main(int argc, char **argv) {
 
   char request_elevation_for_server[1024];
   char elevation_map[1024];
-  size_t request_elevation_len =Packet_serialize(&request_elevation_for_server,request_elevation);
+  size_t request_elevation_len =Packet_serialize(&request_elevation_for_server, &(request_elevation->header));
 
   while ((ret = send(socket_desc, request_elevation_for_server, request_elevation_for_server_len, 0) < 0){
       if (errno == EINTR) continue;
+      else if (errno == ENOTCONN) {
+          printf("Server closed connection, could not send request elevation. Goodbye!");
+          exit(0);
+      }
       ERROR_HELPER(-1, "Could not send my texture for server");
   }
 
   while ((ret = recv(socket_desc, elevation_map, msg_len, 0)) < 0){
       if (errno == EINTR) continue;
+      else if (errno == ENOTCONN) {
+          printf("Server closed connection, could not receive elevation map. Goodbye!");
+          exit(0);
+      }
       ERROR_HELPER(-1, "Could not read elevation map from socket");
   }
 
@@ -590,15 +668,23 @@ int main(int argc, char **argv) {
   request_map->header->type=GetTexture;
   request_map->header->size=sizeof(IdPacket);
   request_map->id=id->id;
-  size_t request_texture_map_for_server_len=Packet_serialize(&request_texture_map_for_server,request_map);
+  size_t request_texture_map_for_server_len=Packet_serialize(&request_texture_map_for_server, &(request_map->header));
 
     while ((ret = send(socket_desc, request_texture_map_for_server, request_texture_map_for_server_len, 0) < 0){
       if (errno == EINTR) continue;
+      else if (errno == ENOTCONN) {
+          printf("Server closed connection, could not send texture map request. Goodbye!");
+          exit(0);
+      }
       ERROR_HELPER(-1, "Could not send my texture for server");
   }
 
   while ((ret = recv(socket_desc, texture_map, msg_len, 0)) < 0){
       if (errno == EINTR) continue;
+      else if (errno == ENOTCONN) {
+          printf("Server closed connection, could not receive texture map. Goodbye!");
+          exit(0);
+      }
       ERROR_HELPER(-1, "Could not read map texture from socket");
   }
 
@@ -638,9 +724,11 @@ int main(int argc, char **argv) {
   pthread_t thread_tcp;
   pthread_t thread_udp;
 
+  /**
   // create the semaphore to manipulate the quit_packet in critical section
   ret = sem_init(&sem_quit_handle, 0, 1);
-  ERROR_HELPER(ret, "Could not create semaphore");
+  ERROR_HELPER(ret, "Could not create squit semaphore");
+  **/
 
   ret = pthread_create(&thread_tcp, NULL, thread_listener_tcp,args);
   ERROR_HELPER(ret, "Could not create thread");
@@ -658,7 +746,7 @@ int main(int argc, char **argv) {
 
   // cleanup
   World_destroy(&world);
-  
+
   /* Devo distruggere il semaforo ma non posso farlo successivamente a causa delle detach
   ret = sem_destroy(&sem_quit_handle);
   ERROR_HELPER(ret, "Could not destroy the semaphore");

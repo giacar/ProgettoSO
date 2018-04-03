@@ -4,6 +4,7 @@
 #include <stdio.h>
 #include <unistd.h>
 #include <semaphore.h>
+#include <errno.h>
 
 #include "image.h"
 #include "surface.h"
@@ -47,14 +48,15 @@ void* thread_server_TCP(void* thread_server_TCP_args){
 
 		if (ret == -1 && errno == EINTR) continue;
         ERROR_HELPER(ret, "Failed to read username from client");
-		
+
 		if (user_att[bytes_read] == '\n') {
 			bytes_read++;
 			break;
 		}
 	}
 
-	sem_wait(&sem_utenti);
+    ret = sem_wait(&sem_utenti);
+    ERROR_HELPER(ret, "Error in sem_utenti wait");
 
 	// Verifico se user già registrato
 	int idx = -1;
@@ -72,16 +74,17 @@ void* thread_server_TCP(void* thread_server_TCP_args){
 		if (i >= MAX_USER_NUM) ERROR_HELPER(-1, "Slot utenti terminati");
 		idx = i;
 		utenti[idx].username = user_att;
-		
-		sem_post(&sem_utenti);
-		
+
+		ret = sem_post(&sem_utenti);
+		ERROR_HELPER(ret, "Error in sem_utenti post");
+
 		// invio al client che è un nuovo user
 		login_reply = 0;
 		while ((ret = send(arg->socket_desc_TCP_client, &login_reply, 4, 0)) < 0) {
 			if (errno == EINTR) continue;
 			ERROR_HELPER(-1, "Failed to send login_reply to client");
 		}
-		
+
 		//ricezione password
 		bytes_read = 0;
 		while (1) {
@@ -89,7 +92,7 @@ void* thread_server_TCP(void* thread_server_TCP_args){
 
 			if (ret == -1 && errno == EINTR) continue;
 		    ERROR_HELPER(ret, "Failed to read password from client");
-			
+
 			if (user_att[bytes_read] == '\n') {
 				bytes_read++;
 				break;
@@ -97,12 +100,14 @@ void* thread_server_TCP(void* thread_server_TCP_args){
 		}
 
 		// registrazione password ed id
-		sem_wait(&sem_utenti);
-		
+		ret = sem_wait(&sem_utenti);
+        ERROR_HELPER(ret, "Error in sem_utenti wait: failed to register username & password");
+
 		utenti[idx].password = pass_att;
 		utenti[idx].id = idx;
 
-		sem_post(&sem_utenti);
+		ret = sem_post(&sem_utenti);
+        ERROR_HELPER(ret, "Error in sem_utenti post: failed to register username & password");
 
 		id_utente = idx;
 	}
@@ -111,7 +116,8 @@ void* thread_server_TCP(void* thread_server_TCP_args){
 	else if (idx > -1) {
 		pass_giusta = utenti[idx].password;
 
-		sem_post(&sem_utenti);
+		ret = sem_post(&sem_utenti);
+        ERROR_HELPER(ret, "Error in sem_utenti post");
 
 		// invio al client che è già registrato
 		login_reply = 1;
@@ -119,7 +125,7 @@ void* thread_server_TCP(void* thread_server_TCP_args){
 			if (errno == EINTR) continue;
 			ERROR_HELPER(-1, "Failed to send login_reply to client");
 		}
-		
+
 		//ricezione password
 		do {
 			bytes_read = 0;
@@ -128,7 +134,7 @@ void* thread_server_TCP(void* thread_server_TCP_args){
 
 				if (ret == -1 && errno == EINTR) continue;
 			    ERROR_HELPER(ret, "Failed to read password from client");
-				
+
 				if (user_att[bytes_read] == '\n') {
 					bytes_read++;
 					break;
@@ -155,7 +161,7 @@ void* thread_server_TCP(void* thread_server_TCP_args){
 		} while (pass_att != pass_giusta);
 
 		// ricezione richiesta di respawn
-		
+
 		char[256] req;
 
 		bytes_read = 0;
@@ -164,7 +170,7 @@ void* thread_server_TCP(void* thread_server_TCP_args){
 
 			if (ret == -1 && errno == EINTR) continue;
 		    ERROR_HELPER(ret, "Failed to read password from client");
-			
+
 			if (user_att[bytes_read] == '\n') {
 				bytes_read++;
 				break;
@@ -172,8 +178,33 @@ void* thread_server_TCP(void* thread_server_TCP_args){
 		}
 
 		if (req == "Respawn\n") {
-			// invio dati per il respawn 
+			// invio dati per il respawn
 			// [TODO]
+            char[1024] respawn;
+            int respawn_len;
+            ImagePacket* texture = (Image*) mallox(sizeof(Image));
+            texture->header->size = sizeof(ImagePacket);
+            texture->header->type = PostTexture;
+            client_disconnected* temp = offline_client;
+            while (temp != NULL) {
+                if (temp -> id == idx){
+                    texture->id = 0;
+                    texture->image = temp->texture;
+                    respawn_len = Packet_serialize(respawn, &(texture->header));
+
+                    while ((ret = send(arg->socket_desc_TCP_client, respawn, respawn_len, 0)) < 0){
+                        if (errno == EINTR) continue;
+                        else if (errno == ENOTCONN) {
+                            printf("Client closed connection.");
+                        }
+                        ERROR_HELPER(-1, "Error in sending client state to client");
+                    }
+
+                    break;
+
+                }
+                else temp = temp->next;
+            }
 		}
 	}
 
