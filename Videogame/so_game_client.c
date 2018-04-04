@@ -452,13 +452,13 @@ int main(int argc, char **argv) {
 
     while (1){
         printf("LOGIN\n Please enter username: ");
-        scanf("%s", &username);
-        user_length = strlen(&username);
+        scanf("%s", username);
+        user_length = strlen(username);
         if (user_length >= 64) printf("ERROR! username too length, please retry.");
         else break;
     }
 
-	while((ret = send(socket_desc, &username, user_length, 0)) < 0) {
+	while((ret = send(socket_desc, username, user_length, 0)) < 0) {
 		if (errno == EINTR) continue;
         else if (errno == ENOTCONN) {
             printf("Server closed connection, cannot send username. Goodbye!");
@@ -466,7 +466,7 @@ int main(int argc, char **argv) {
         }
 		ERROR_HELPER(ret, "Failed to send login data");
 	}
-	while((ret = recv(socket_desc, &login_state, 4, 0)) < 0) {
+	while((ret = recv(socket_desc, login_state, sizeof(int), 0)) < 0) {
 		if (errno == EINTR) continue;
         else if (errno == ENOTCONN) {
             printf("Server closed connection, cannot receive login state. Goodbye!");
@@ -475,13 +475,18 @@ int main(int argc, char **argv) {
 		ERROR_HELPER(ret, "Failed to update login's state");
 	}
 
-	if (login_state == 0) printf("\nWelcome %s.", &username);
-	else printf("\nWelcome back %s.", &username);
+	if (login_state) printf("\nWelcome back %s.", username);	
+	else if (login_state == 0) printf("\nWelcome %s.", username);
+	else {
+		// Non c'è più posto tra gli user online
+		printf("\nÈ stato raggiunto il massimo numero di utenti online. Riprova più tardi.\n");
+		exit(0);
+	}
 
 	printf(" Please enter password: ");
-	scanf("%s", &password);
+	scanf("%s", password);
 	printf("\n");
-	pass_length = strlen(&password);
+	pass_length = strlen(password);
 
 	while((ret = send(socket_desc, password, pass_length, 0)) < 0) {
 		if (errno == EINTR) continue;
@@ -491,7 +496,7 @@ int main(int argc, char **argv) {
         }
 		ERROR_HELPER(ret, "Failed to send login data");
 	}
-	while((ret = recv(socket_desc, &login_state, 4, 0)) < 0) {
+	while((ret = recv(socket_desc, &login_state, sizeof(int), 0)) < 0) {
 		if (errno == EINTR) continue;
         else if (errno == ENOTCONN) {
             printf("Server closed connection, could not receiver login's state. Goodbye!");
@@ -502,7 +507,7 @@ int main(int argc, char **argv) {
 
 	while (login_state == -1) {
 		printf("Incorrect Password, please insert it again: ");
-		scanf("%s", &password);
+		scanf("%s", password);
 		printf("\n");
 		while((ret = send(socket_desc, password, login_length, 0)) < 0) {
 			if (errno == EINTR) continue;
@@ -523,7 +528,7 @@ int main(int argc, char **argv) {
 		}
 	}
 
-	if (login_state == 0) printf("You're signed up with user: %s, welcome to the game!\n", &username);
+	if (login_state == 0) printf("You're signed up with user: %s, welcome to the game!\n", username);
 
   	/** Se utente esiste e la password è corretta, allora invia al server un richiesta di tutti i dati salvati nella
   	*	precedente sessione e il server risponde con tali dati
@@ -531,7 +536,7 @@ int main(int argc, char **argv) {
    	**/
 
    	else if (login_state == 1) {
-   		printf("Login success, welcome back %s\n", &username);
+   		printf("Login success, welcome back %s\n", username);
 
    		// invio richiesta di ripristino
    		char[] req = "Respawn\n";

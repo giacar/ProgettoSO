@@ -35,7 +35,7 @@ void* thread_server_TCP(void* thread_server_TCP_args){
 	//implementare protoccollo login e aggiungere il nuovo client al mondo ed alla lista dei client connessi
 	thread_server_TCP_args *arg = (thread_server_TCP_args *)args;
 
-	// Login
+	// Strutture dati per il Login
 	char[64] user_att;
 	char[64] pass_att;
 	char[64] pass_giusta;
@@ -53,6 +53,8 @@ void* thread_server_TCP(void* thread_server_TCP_args){
 			bytes_read++;
 			break;
 		}
+
+		bytes_read++;
 	}
 
     ret = sem_wait(&sem_utenti);
@@ -69,21 +71,31 @@ void* thread_server_TCP(void* thread_server_TCP_args){
 	// Nuovo user
 	if (idx == -1) {
 		// inserisco user nel primo slot libero
+		login_reply = 0;	// È un nuovo user
 		int i;
 		for (i = 0; i < MAX_USER_NUM && utenti[i].username != NULL; i++);
-		if (i >= MAX_USER_NUM) ERROR_HELPER(-1, "Slot utenti terminati");
-		idx = i;
-		utenti[idx].username = user_att;
+		
+		/**
+			Slot utenti disponibili terminati
+			Devo informare il client che gli slot sono terminati, in modo che termini e che il thread corrente termini
+		**/
+		if (i >= MAX_USER_NUM) login_reply = -1;
+		
+		else {
+			idx = i;
+			utenti[idx].username = user_att;
+		}
 
 		ret = sem_post(&sem_utenti);
 		ERROR_HELPER(ret, "Error in sem_utenti post");
 
-		// invio al client che è un nuovo user
-		login_reply = 0;
-		while ((ret = send(arg->socket_desc_TCP_client, &login_reply, 4, 0)) < 0) {
+		// informo il client che è un nuovo user o che gli slot sono terminati
+		while ((ret = send(arg->socket_desc_TCP_client, login_reply, sizeof(int), 0)) < 0) {
 			if (errno == EINTR) continue;
-			ERROR_HELPER(-1, "Failed to send login_reply to client");
+			ERROR_HELPER(ret, "Failed to send login_reply to client");
 		}
+
+		if (login_reply == -1) pthread_exit(-1);		// Slot user terminati devo terminare il thread corrente
 
 		//ricezione password
 		bytes_read = 0;
@@ -97,6 +109,8 @@ void* thread_server_TCP(void* thread_server_TCP_args){
 				bytes_read++;
 				break;
 			}
+
+			bytes_read++;
 		}
 
 		// registrazione password ed id
@@ -119,9 +133,9 @@ void* thread_server_TCP(void* thread_server_TCP_args){
 		ret = sem_post(&sem_utenti);
         ERROR_HELPER(ret, "Error in sem_utenti post");
 
-		// invio al client che è già registrato
+		// informo il client che è già registrato
 		login_reply = 1;
-		while ((ret = send(arg->socket_desc_TCP_client, &login_reply, 4, 0)) < 0) {
+		while ((ret = send(arg->socket_desc_TCP_client, &login_reply, sizeof(int), 0)) < 0) {
 			if (errno == EINTR) continue;
 			ERROR_HELPER(-1, "Failed to send login_reply to client");
 		}
@@ -139,6 +153,8 @@ void* thread_server_TCP(void* thread_server_TCP_args){
 					bytes_read++;
 					break;
 				}
+
+				bytes_read++;
 			}
 
 			// password giusta
@@ -182,7 +198,7 @@ void* thread_server_TCP(void* thread_server_TCP_args){
 			// [TODO]
             char[1024] respawn;
             int respawn_len;
-            ImagePacket* texture = (Image*) mallox(sizeof(Image));
+            ImagePacket* texture = (Image*) malloc(sizeof(Image));
             texture->header->size = sizeof(ImagePacket);
             texture->header->type = PostTexture;
             client_disconnected* temp = offline_client;
