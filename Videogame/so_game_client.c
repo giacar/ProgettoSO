@@ -478,8 +478,8 @@ int main(int argc, char **argv) {
 	if (login_state) printf("\nWelcome back %s.", username);	
 	else if (login_state == 0) printf("\nWelcome %s.", username);
 	else {
-		// Non c'è più posto tra gli user online
-		printf("\nÈ stato raggiunto il massimo numero di utenti online. Riprova più tardi.\n");
+		// Non c'è più posto tra gli user
+		printf("\nÈ stato raggiunto il massimo numero di utenti. Riprova più tardi.\n");
 		exit(0);
 	}
 
@@ -553,6 +553,29 @@ int main(int argc, char **argv) {
 
 		// ricezione stato precedente
 		// [TODO]
+		char[1024] respawn;
+		int respawn_len = 0;
+
+		ImagePacket *texture = (Image *)malloc(sizeof(ImagePacket));
+		if (texture == NULL) ERROR_HELPER(-1, "Failed to allocate respawn structure");
+		
+		while(1) {
+			ret = recv(arg->socket_desc, respawn+respawn_len, 1, 0);
+
+			if (ret == -1 && errno == EINTR) continue;
+			if (errno == ENOTCONN) ERROR_HELPER(ret, "Server closed connection");
+
+			if (respawn[respawn_len] == '\0') {
+				respawn_len++;
+				break;
+			}
+
+			respawn_len++;
+		}
+
+		&(texture->header) = Packet_deserialize(respawn, respawn_len);
+
+		// DA FINIRE E CONTROLLARNE LA CORRETTEZZA
    	}
 
   }
