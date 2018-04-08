@@ -61,12 +61,6 @@ typedef struct {
   float theta;
 } ClientUpdate;
 
-// quit packet structure used by client to exit
-/**typedef struct {
-  int quit;
-  char[17] quit_command;
-  int socket_desc_TCP;
-}QuitPacket;**/
 
 // server world update, send by server (UDP)
 typedef struct {
@@ -84,11 +78,6 @@ typedef struct thread_client_args{
     struct sockaddr_in server_addr_UDP;  //necessario per la comunicazione UDP
 
 }thread_client_args;
-
-typedef struct NodoStringa{
-    char[1024] current;
-    NodoStringa* next;
-} NodoStringa;
 
 
 // converts a well formed packet into a string in dest.

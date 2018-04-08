@@ -14,15 +14,14 @@
 #include "utils.h"
 #include "common.h"
 
-user_table[MAX_USER_NUM] utenti;
+user_table utenti[MAX_USER_NUM];
 // Creare lista di tutti i client connessi che verranno man mano aggiunti e rimossi
 // deve contenere ID texture. Stessa cosa vale con una lista di client disconnessi
 // in modo da ripristinare lo stato in caso di un nuovo login
-client_connected * online_client[MAX_USER_NUM];    //vettore di puntatori a strutture dati client_connected
-client_disconnected * offline_client[MAX_USER_NUM];   //vettore di puntatori a strutture dati client_disconnected
+client_connected  online_client[MAX_USER_NUM];    //vettore di puntatori a strutture dati client_connected
+client_disconnected  offline_client[MAX_USER_NUM];   //vettore di puntatori a strutture dati client_disconnected
 
-sem_t sem_onlinelist;
-sem_t sem_offlinelist;
+
 sem_t sem_utenti;
 
 
@@ -42,6 +41,7 @@ void* thread_server_TCP(void* thread_server_TCP_args){
 
 	//implementare protoccollo login e aggiungere il nuovo client al mondo ed alla lista dei client connessi
 	thread_server_TCP_args *arg = (thread_server_TCP_args *)args;
+	int socket=args->socket_desc_TCP_client;
 
 	// Strutture dati per il Login
 	char[64] user_att;
@@ -58,6 +58,7 @@ void* thread_server_TCP(void* thread_server_TCP_args){
         ERROR_HELPER(ret, "Failed to read username from client");
 
 		if (user_att[bytes_read] == '\n') {
+			user_att[bytes_read]='\0';
 			bytes_read++;
 			break;
 		}
@@ -71,7 +72,7 @@ void* thread_server_TCP(void* thread_server_TCP_args){
 	// Verifico se user già registrato
 	int idx = -1;
 	for (int i = 0; utenti[i] != NULL; i++) {
-		if (user_att == utenti[i].username) {
+		if (!strcmp(user_att,utenti[i].username)) {
 			idx = i;
 		}
 	}
@@ -91,7 +92,7 @@ void* thread_server_TCP(void* thread_server_TCP_args){
 
 		else {
 			idx = i;
-			utenti[idx].username = user_att;
+			strcpy(utenti[idx].username,user_att);
 		}
 
 		ret = sem_post(&sem_utenti);
@@ -103,7 +104,11 @@ void* thread_server_TCP(void* thread_server_TCP_args){
 			ERROR_HELPER(ret, "Failed to send login_reply to client");
 		}
 
-		if (login_reply == -1) pthread_exit(-1);		// Slot user terminati devo terminare il thread corrente
+		if (login_reply == -1){
+			 ret=close(socket);
+			 pthread_exit(-1);		// Slot user terminati devo terminare il thread corrente
+			 
+		 }
 
 		//ricezione password
 		bytes_read = 0;
@@ -114,6 +119,7 @@ void* thread_server_TCP(void* thread_server_TCP_args){
 		    ERROR_HELPER(ret, "Failed to read password from client");
 
 			if (user_att[bytes_read] == '\n') {
+				user_att[bytes_read]='\0';
 				bytes_read++;
 				break;
 			}
@@ -125,8 +131,8 @@ void* thread_server_TCP(void* thread_server_TCP_args){
 		ret = sem_wait(&sem_utenti);
         ERROR_HELPER(ret, "Error in sem_utenti wait: failed to register username & password");
 
-		utenti[idx].password = pass_att;
-		utenti[idx].id = idx;
+		strcpy(utenti[idx].password,pass_att);
+
 
 		ret = sem_post(&sem_utenti);
         ERROR_HELPER(ret, "Error in sem_utenti post: failed to register username & password");
@@ -136,7 +142,7 @@ void* thread_server_TCP(void* thread_server_TCP_args){
 
 	// Già registrato
 	else if (idx > -1) {
-		pass_giusta = utenti[idx].password;
+		strcpy(pass_giusta,utenti[idx].password);
 
 		ret = sem_post(&sem_utenti);
         ERROR_HELPER(ret, "Error in sem_utenti post");
@@ -158,6 +164,7 @@ void* thread_server_TCP(void* thread_server_TCP_args){
 			    ERROR_HELPER(ret, "Failed to read password from client");
 
 				if (user_att[bytes_read] == '\n') {
+					user_att[bytes_read]='\0';
 					bytes_read++;
 					break;
 				}
@@ -166,9 +173,9 @@ void* thread_server_TCP(void* thread_server_TCP_args){
 			}
 
 			// password giusta
-			if (pass_att == pass_giusta) {
+			if (!strcmp(pass_att,pass_giusta)) {
 				login_reply = 1;
-				while ((ret = send(arg->socket_desc_TCP_client, &login_reply, 4, 0)) < 0) {
+				while ((ret = send(arg->socket_desc_TCP_client, &login_reply, sizeof(int), 0)) < 0) {
 					if (errno == EINTR) continue;
 					ERROR_HELPER(-1, "Failed to send login_reply to client");
 				}
@@ -177,77 +184,34 @@ void* thread_server_TCP(void* thread_server_TCP_args){
 
 			else {
 				login_reply = -1;
-				while ((ret = send(arg->socket_desc_TCP_client, &login_reply, 4, 0)) < 0) {
+				while ((ret = send(arg->socket_desc_TCP_client, &login_reply, sizeof(int), 0)) < 0) {
 					if (errno == EINTR) continue;
 					ERROR_HELPER(-1, "Failed to send login_reply to client");
 				}
 			}
-		} while (pass_att != pass_giusta);
-
-		// ricezione richiesta di respawn
-
-		char[256] req;
-
-		bytes_read = 0;
-		while (1) {
-			ret = recv(arg->socket_desc_TCP_client, req+bytes_read, 1, 0);
-
-			if (ret == -1 && errno == EINTR) continue;
-		    ERROR_HELPER(ret, "Failed to read password from client");
-
-			if (user_att[bytes_read] == '\n') {
-				bytes_read++;
-				break;
-			}
-		}
-
-		if (req == "Respawn\n") {
-			// invio dati per il respawn
-			// [TODO]
-            //client deve recuperare il proprio id e la propria texture
-            char[1024] respawn;
-            int respawn_len;
-            ImagePacket* texture = (ImagePacket*) malloc(sizeof(ImagePacket));  //texture del client da ripristinare
-            texture->header->size = sizeof(ImagePacket);
-            texture->header->type = PostTexture;
-            client_disconnected* temp = offline_client[idx];    //client interessato del respawn
-            texture->id = idx;
-            texture->image = temp->texture;
-            respawn_len = Packet_serialize(respawn, &(texture->header));
-
-            while ((ret = send(arg->socket_desc_TCP_client, respawn, respawn_len, 0)) < 0){
-                if (errno == EINTR) continue;
-                else if (errno == ENOTCONN) {
-                    printf("Client closed connection.");
-                }
-                ERROR_HELPER(-1, "Error in sending client state to client");
-            }
-
-            //finito di inviare i dati per il respawn, bisogna spostare il client dall'array dei disconnessi a quello dei connessi
-            offline_client[idx] = NULL;
-            online_client[idx] = temp;
+		} while (strcmp(pass_att,pass_giusta));
 
 
 
-		}
 	}
 
     /**OK! Il client si è connesso, adesso ha bisogno di sapere le informazioni (texture) di tutti gli altri client che sono connessi nel mondo.
-    Spediamo al client ogni
-    cella dell'aria di client connessi che non è messa a NULL, sottoforma di ImagePacket.
+    Spediamo al client ogni cella dell'array di client connessi che non è messa a NULL, sottoforma di ImagePacket.
     Da questo momento in poi, se il client si disconnette, in qualsiasi modo, c'è bisogno di salvare il suo stato
     **/
 
     int j;
-    char[1024] client_connesso;
+    char[1000000] client_connesso;
     size_t msg_len;
     ImagePacket* client = (ImagePacket*) malloc(sizeof(ImagePacket));
+    PacketHeader img_head;
+    client->header=img_head;
     client->header->type = PostTexture;
     client->header->size = sizeof(ImagePacket);
 
     for (j = 0; j < MAX_USER_NUM; j++){
         if (client_connected[j] != NULL && j != idx){
-            client->id = j; //(?)
+            client->id = j;
             client->texture = client_connected[j]->texture;
 
             msg_len = Packet_serialize(client_connesso, &(client->header));
@@ -361,17 +325,12 @@ int main(int argc, char **argv) {
 
 	// inizializzo i semafori di mutex per online client e offline client list e per tabella utenti
 
-	ret = sem_init(&sem_onlinelist, 1, 0);
-	ERROR_HELPER(ret, "Failed to initialization of sem_onlinelist");
-
-	ret = sem_init(&sem_offlinelist, 1, 0);
-	ERROR_HELPER(ret, "Failed to initialization of sem_offlinelist");
 
 	ret = sem_init(&sem_utenti, 1, 0);
 	ERROR_HELPER(ret, "Failed to initialization of sem_utenti");
 
 	// inizializzo array di utenti
-	for (int i = 0; i < MAX_USER_NUM; i++) {
+	for (i = 0; i < MAX_USER_NUM; i++) {
 		utenti[i].username = NULL;
 		utenti[i].password = NULL;
 		utenti[i].id = -1;
@@ -402,11 +361,14 @@ int main(int argc, char **argv) {
 
   pthread_t thread;
 
-  thread_server_UDP_args* args=(thread_server_UDP_args*)malloc(sizeof(thread_server_UDP_args));
+  thread_server_UDP_args* args_UDP=(thread_server_UDP_args*)malloc(sizeof(thread_server_UDP_args));
+  	 args_UDP->socket_desc_UDP_server=server_socket_UDP;
+	 args_UDP->connected=online_client;
+	 args_UDP->disconnected=offline_client;
 
   //creo il thread
 
-  ret = pthread_create(&thread, NULL,thread_server_TCP,args);
+  ret = pthread_create(&thread, NULL,thread_server_UDP,args_UDP);
   ERROR_HELPER(ret, "Could not create thread");
 
   // impongo di non aspettare terminazione in modo da non bloccare tutto il programma
@@ -457,12 +419,12 @@ int main(int argc, char **argv) {
 
 	 pthread_t thread;
 
-	 thread_server_TCP_args* args=(thread_server_TCP_args*)malloc(sizeof(thread_server_TCP_args));
-	 args->socket_desc_TCP_client = client_socket;
-	 args->list = online_client;
+	 thread_server_TCP_args* args_TCP=(thread_server_TCP_args*)malloc(sizeof(thread_server_TCP_args));
+	 args_TCP->socket_desc_TCP_client = client_socket;
+	 args_TCP->connected=online_client;
+	 args_TCP->disconnected=offline_client;
 
-
-	 ret = pthread_create(&thread, NULL,thread_server_TCP,args);
+	 ret = pthread_create(&thread, NULL,thread_server_TCP,args_TCP);
 	 ERROR_HELPER(ret, "Could not create thread");
 
 	 ret = pthread_detach(thread);

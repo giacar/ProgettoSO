@@ -20,70 +20,13 @@ WorldViewer viewer;
 World world;
 Vehicle* vehicle; // The vehicle
 int ret;
-//QuitPacket quit_packet;	// packet to handle the exit of client
-//sem_t sem_quit_handle;	// handles the quit_packet manipulation which is in critical section
 char[64] username;
 char[64] password;
 
 //se recv() restituisce 0 o un errore di socket (ENOTCONN et similia), vuol dire che la comunicazione è stata chiusa. Idem per recvfrom
 //send() invece, in caso di errore (ENOTCONN et similia), restituisce -1 e setta errno a un certo valore. Idem per sendto
 
-/**
-void gestione_quit(){
 
-    //catturato il segnale di quit, inviamo una stringa con dentro "quit" al server, che la riceve ed elimina il client dalla lista dei connessi
-    //(di fatto, il server prende lo stato del client contenuto nella lista di client_connected e lo sposta alla fine di client_disonnected)
-    while (1){
-        printf("Caught quit signal");
-
-        ret = sem_wait(&sem_quit_handle);
-        ERROR_HELPER(ret, "sem_wait failed on gestione_quit");
-        // CS
-        char[17] quit_command = quit_packet -> quit_command;
-        socket_desc_TCP = quit_packet -> socket_desc_TCP;
-        // CS
-        ret = sem_post(&sem_quit_handle);
-        ERROR_HELPER(ret, "sem_post failed on gestione_quit");
-
-        quit_command = "quit";
-        int msg_len = strlen(quit_command);
-        quit_command[msg_len] = '\0';
-
-        //invia il messaggio di quit al server e attende un ack
-
-        while ((ret = send(socket_desc_TCP, quit_command, msg_len, 0) < 0)){
-            if (errno == EINTR) continue;
-            ERROR_HELPER(-1, "Could not send quit command to server");
-        }
-
-        char[17] ack;
-        while ((ret = recv(socket_desc_TCP, ack, msg_len, 0) < 0)){
-            if (errno == EINTR) continue;
-            ERROR_HELPER(-1, "Could not receive ack from server");
-        }
-
-        ack[msg_len] = '\0';
-
-        if (!strcmp(ack, "ok")) {
-            printf("Error in quit! Trying again...");
-            continue;
-        }
-
-        else{
-        	ret = sem_wait(&sem_quit_handle);
-        	ERROR_HELPER(ret, "sem_wait failed on gestione_quit");
-
-            quit_packet -> quit = 1;
-
-            ret = sem_post(&sem_quit_handle);
-            ERROR_HELPER(ret, "sem_post failed on gestione_quit");
-
-            printf("Success! Goodbye");
-            break;
-        }
-    }
-
-}**/
 
 void* thread_listener_tcp(void* client_args){
 	/**COMUNICAZIONE TCP**/
@@ -113,8 +56,9 @@ void* thread_listener_tcp(void* client_args){
     struct sockaddr_in server_UDP = arg->server_addr_UDP;
 
     //Ricezione degli ImagePacket contenenti id e texture di tutti i client presenti nel mondo
-    char[1024] user;
+    char[1000000] user;
     int msg_len;
+
 
     char* finish_command = FINISH_COMMAND;
     size_t finish_command_len = strlen(finish_command);
@@ -123,7 +67,7 @@ void* thread_listener_tcp(void* client_args){
 
         //Il server invia le celle dell'array dei connessi che non sono messe a NULL. Quando poi invia "Finish", vuol dire che ha finito.
 
-        while ((ret = recv(socket_desc_TCP, user, msg_len, 0)) < 0){
+        while ((ret = recv(socket_desc_TCP, user, sizeof(ImagePacket), 0)) < 0){
             if (errno == EINTR) continue;
             else if (errno == ENOTCONN) {
                 printf("Server closed connection, could not receive users already in world. Goodbye!");
@@ -131,8 +75,10 @@ void* thread_listener_tcp(void* client_args){
             }
             ERROR_HELPER(-1, "Could not receive users already in world");
         }
+        
+        msg_len=ret;
+        user[msg_len]='\0';
 
-        if (ret == finish_command_len && !memcmp(user, finish_command, finish_command_len)) break;
 
 
         // to send its texture
@@ -147,7 +93,7 @@ void* thread_listener_tcp(void* client_args){
           Image* image;
         } ImagePacket;**/
 
-        ImagePacket* client = Packet_deserialize(&user, msg_len);
+        ImagePacket* client = Packet_deserialize(user, msg_len);
         int id = client->id;
         if (client->image == NULL){
             Vehicle* v = World_getVehicle(&w, id);
@@ -158,26 +104,6 @@ void* thread_listener_tcp(void* client_args){
             Vehicle_init(v, &world, id, client->image);
         }
     }
-
-    /**
-    //DISCONNESSIONE
-	struct sigaction sa;
-
-    //setup the signal handler
-    sa.sa_handler = gestione_quit;
-
-    //restart the system call, if at all possible
-    sa.sa_flags = SA_RESTART;
-
-    //block every signal during handling
-    sigfillset(&sa.sa_mask);
-
-    while(1){
-        //intercept SIGQUIT
-
-        if (sigaction(SIGQUIT, &sa, NULL) == -1) ERROR_HELPER(-1, "Error: cannot handle SIQUIT");
-
-    }**/
 
 }
 
@@ -208,29 +134,18 @@ void* thread_listener_udp(void* client_args){   //todo
     **/
     while(1){
 
-        /**
-    	// use of critical section implementation for instruction: while(quit_packet -> quit == 0){
-    	unsigned exit_dute = 0;
 
-    	ret = sem_wait(&sem_quit_handle);
-    	ERROR_HELPER(ret, "sem_wait failed in thread_listener_udp");
-
-    	if (quit_packet -> quit != 0) exit_dute = 1;
-
-    	ret = sem_post(&sem_quit_handle);
-    	ERROR_HELPER(ret, "sem_post failed in thread_listener_udp");
-
-    	if (exit_dute) break;
-        **/
 
     //creazione di un pacchetto di update personale da inviare al server.
         VehicleUpdatePacket* update = (VehicleUpdatePacket*) malloc(sizeof(VehicleUpdatePacket));
+        PacketHeader update_head;
+        update->header=&update_head;
         update->translational_force = v->translational_force_update;
         update->rotational_force = v->rotational_force_update;
         update->header->size = sizeof(VehicleUpdatePacket);
         update->header->type = VehicleUpdate;
 
-        char[1024] vehicle_update;
+        char[1000000] vehicle_update;
         int vehicle_update_len = Packet_serialize(vehicle_update, &(update->header));
 
         while ((ret = sendto(socket_UDP, vehicle_update, vehicle_update_len, 0, (struct sockaddr*) server_UDP, sizeof(server_UDP)) < 0)){
@@ -243,11 +158,12 @@ void* thread_listener_udp(void* client_args){   //todo
         }
 
     //richiesta di tutti gli update degli altri veicoli, per aggiornare il proprio mondo
+    //da sistemare la dimensione
 
-        char[1024] world_update;
+        char[1000000] world_update;
         int world_update_len;
 
-        while ((ret = recvfrom(socket_UDP, world_update, world_update_len, 0, (struct sockaddr*) server_UDP, sizeof(server_UDP)) < 0)){
+        while ((ret = recvfrom(socket_UDP, world_update,/*dimensione variabile */ , 0, (struct sockaddr*) server_UDP, sizeof(server_UDP)) < 0)){
             if (errno == EINTR) continue;
             else if (errno == ENOTCONN) {
                 printf("Server closed connection, could not receive world update. Goodbye!");
@@ -465,7 +381,7 @@ int main(int argc, char **argv) {
         }
 		ERROR_HELPER(ret, "Failed to send login data");
 	}
-	while((ret = recv(socket_desc, login_state, sizeof(int), 0)) < 0) {
+	while((ret = recv(socket_desc, &login_state, sizeof(int), 0)) < 0) {
 		if (errno == EINTR) continue;
         else if (errno == ENOTCONN) {
             printf("Server closed connection, cannot receive login state. Goodbye!");
@@ -498,7 +414,7 @@ int main(int argc, char **argv) {
 	while((ret = recv(socket_desc, &login_state, sizeof(int), 0)) < 0) {
 		if (errno == EINTR) continue;
         else if (errno == ENOTCONN) {
-            printf("Server closed connection, could not receiver login's state. Goodbye!");
+            printf("Server closed connection, could not receive login's state. Goodbye!");
             exit(0);
         }
 		ERROR_HELPER(ret, "Failed to update login's state");
@@ -508,7 +424,7 @@ int main(int argc, char **argv) {
 		printf("Incorrect Password, please insert it again: ");
 		scanf("%s", password);
 		printf("\n");
-		while((ret = send(socket_desc, password, login_length, 0)) < 0) {
+		while((ret = send(socket_desc, password, strlen(password), 0)) < 0) {
 			if (errno == EINTR) continue;
             else if (errno == ENOTCONN) {
                 printf("Server closed connection, could not send password. Goodbye!");
@@ -517,76 +433,53 @@ int main(int argc, char **argv) {
 			ERROR_HELPER(ret, "Failed to send login data");
 		}
 
-		while((ret = recv(socket_desc, &login_state, 1, 0)) < 0) {
+		while((ret = recv(socket_desc, &login_state, sizeof(int), 0)) < 0) {
 			if (errno == EINTR) continue;
             else if (errno == ENOTCONN) {
-                printf("Server closed connection, could not receiver login's state. Goodbye!");
+                printf("Server closed connection, could not receive login's state. Goodbye!");
                 exit(0);
             }
 			ERROR_HELPER(ret, "Failed to receive login's state");
 		}
 	}
 
-	if (login_state == 0) printf("You're signed up with user: %s, welcome to the game!\n", username);
+	if (login_state == 0) printf("You're signed up with user: %s, welcome to the game!\n", username);	//password salvata
 
-  	/** Se utente esiste e la password è corretta, allora invia al server un richiesta di tutti i dati salvati nella
-  	*	precedente sessione e il server risponde con tali dati
+  	/** Se utente esiste e la password è corretta, allora il server gli invia il suo id, così il client potrà utilizzarlo successivamente quando spedirà 
+  	 * l'IdPacket e per ricevere la texture
    	*	[TODO]
    	**/
 
    	else if (login_state == 1) {
    		printf("Login success, welcome back %s\n", username);
 
-   		// invio richiesta di ripristino
-   		char[] req = "Respawn\n";
-   		int req_length = strlen(req);
 
-		while((ret = send(socket_desc, req, req_length, 0)) < 0) {
-			if (errno == EINTR) continue;
-            else if (errno == ENOTCONN) {
-                printf("Server closed connection, could not send respawn request. Goodbye!");
-                exit(0);
-            }
-			ERROR_HELPER(ret, "Failed to send login data");
-		}
 
-		// ricezione stato precedente
+		// ricezione ID in modo da inserirla successivamente nel ID packet
 		// [TODO]
-		char[1024] respawn;
-		int respawn_len = 0;
-
-		ImagePacket *texture = (Image *)malloc(sizeof(ImagePacket));
-		if (texture == NULL) ERROR_HELPER(-1, "Failed to allocate respawn structure");
-
-		while(1) {
-			ret = recv(arg->socket_desc, respawn+respawn_len, 1, 0);
-
-			if (ret == -1 && errno == EINTR) continue;
-			if (errno == ENOTCONN) ERROR_HELPER(ret, "Server closed connection");
-
-			if (respawn[respawn_len] == '\0') {
-				respawn_len++;
-				break;
-			}
-
-			respawn_len++;
-		}
-
-		&(texture->header) = Packet_deserialize(respawn, respawn_len);
+		
 
 		// DA FINIRE E CONTROLLARNE LA CORRETTEZZA
    	}
 
   }
+  
+  /**
+  Se il client è un nuovo utente manderà la richiesta dell'id al server con un IdPacket col campo id settato a -1. Altrimenti, quel campo id sarà settato
+  al suo id che aveva prima di disconnettersi. Tutto ciò serve per far capire al server da dove deve estrapolare la texture: se id = -1 allora riceve la
+  texture dal client e gliela reinvia. Altrimenti, lui la prende dalla sua cella di client_connected (o disconnected //DA DEFINIRE!) e gliela reinvia.
+  **/
 
   //requesting and receving the ID
   IdPacket* request_id=(IdPacket*)malloc(sizeof(IdPacket));
+  PacketHeader id_head;
+  request_id->header=&id_head;
   request_id->header->type=GetId;
   request_id->header->size=sizeof(IdPacket);
   request_id->id=-1;
 
-  char idPacket_request[1024];
-  char idPacket[1024];
+  char idPacket_request[1000000];
+  char idPacket[1000000];
   size_t idPacket_request_len = Packet_serialize(&idPacket_request,&(request_id->header));
   size_t msg_len;
 
@@ -600,7 +493,7 @@ int main(int argc, char **argv) {
     ERROR_HELPER(-1, "Could not send id request  to socket");
   }
 
-  while ((ret = recv(socket_desc, idPacket, msg_len, 0)) < 0){
+  while ((ret = recv(socket_desc, idPacket, sizeof(IdPacket), 0)) < 0){
     if (errno == EINTR) continue;
     else if (errno == ENOTCONN) {
         printf("Server closed connection, could not receive id. Goodbye");
@@ -608,24 +501,26 @@ int main(int argc, char **argv) {
     }
     ERROR_HELPER(-1, "Could not read id from socket");
   }
-
+  msg_len=ret;
   idPacket[msg_len] = '\0';
 
-  IdPacket* id=Packet_deserialize(&idPacket, msg_len);
+  IdPacket* id=Packet_deserialize(idPacket, msg_len);
   if(id->header->type!=GetId) ERROR_HELPER(-1,"Error in packet type \n");
 
 
   // sending my texture
-  char texture_for_server[1024];
+  char texture_for_server[1000000];
 
 
   ImagePacket* my_texture=malloc(sizeof(ImagePacket));
-  texture->header->type=PostTexture;
-  texture->header->size=sizeof(ImagePacket);
-  texture->id=id->id;
-  texture->image=&my_texture_for_server;
+  PacketHeader img_head;
+  my_texture->header=&img_head;
+  my_texture->header->type=PostTexture;
+  my_texture->header->size=sizeof(ImagePacket);
+  my_texture->id=id->id;
+  my_texture->image=&my_texture_for_server;
 
-  size_t texture_for_server_len = Packet_serialize(&texture_for_server, &(my_texture->header));
+  size_t texture_for_server_len = Packet_serialize(texture_for_server, &(my_texture->header));
 
 
   while ((ret = send(socket_desc, texture_for_server, texture_for_server_len, 0) < 0){
@@ -638,9 +533,9 @@ int main(int argc, char **argv) {
   }
   // receving my texture from server
 
-  char my_texture_from_server[1024];
+  char my_texture_from_server[1000000];
 
-    while ((ret = recv(socket_desc, my_texture_from_server, msg_len, 0)) < 0){
+    while ((ret = recv(socket_desc, my_texture_from_server, sizeof(ImagePacket), 0)) < 0){
       if (errno == EINTR) continue;
       else if (errno == ENOTCONN) {
           printf("Server closed connection, could not receive my_texture_from_server. Goodbye!");
@@ -648,7 +543,8 @@ int main(int argc, char **argv) {
       }
       ERROR_HELPER(-1, "Could not read my texture from socket");
   }
-
+  
+  msg_len=ret;
   my_texture_from_server[msg_len] = '\0';
 
   ImagePacket* my_texture_received=Packet_deserialize(&my_texture_from_server,msg_len);
@@ -657,13 +553,15 @@ int main(int argc, char **argv) {
 
   //requesting and receving elevation map
   IdPacket* request_elevation=(IdPacket*)malloc(sizeof(IdPacket));
+  PacketHeader request_elevation_head;
+  request_elevation->header=&request_elevation_head;
   request_elevation->id=id->id;
   request_elevation->header->size=sizeof(IdPacket);
   request_elevation->header->type=GetElevation;
 
-  char request_elevation_for_server[1024];
-  char elevation_map[1024];
-  size_t request_elevation_len =Packet_serialize(&request_elevation_for_server, &(request_elevation->header));
+  char request_elevation_for_server[1000000];
+  char elevation_map[1000000];
+  size_t request_elevation_len =Packet_serialize(request_elevation_for_server, &(request_elevation->header));
 
   while ((ret = send(socket_desc, request_elevation_for_server, request_elevation_for_server_len, 0) < 0){
       if (errno == EINTR) continue;
@@ -674,7 +572,7 @@ int main(int argc, char **argv) {
       ERROR_HELPER(-1, "Could not send my texture for server");
   }
 
-  while ((ret = recv(socket_desc, elevation_map, msg_len, 0)) < 0){
+  while ((ret = recv(socket_desc, elevation_map,sizeof(ImagePacket), 0)) < 0){
       if (errno == EINTR) continue;
       else if (errno == ENOTCONN) {
           printf("Server closed connection, could not receive elevation map. Goodbye!");
@@ -683,15 +581,18 @@ int main(int argc, char **argv) {
       ERROR_HELPER(-1, "Could not read elevation map from socket");
   }
 
+  msg_len=ret;
   elevation_map[msg_len] = '\0';
-  ImagePacket* elevation= Packet_deserialize(&elevation_map,msg_len);
+  ImagePacket* elevation= Packet_deserialize(elevation_map,msg_len);
   if(elevation->header->type!=PostElevation && elevation->id!=0) ERROR_HELPER(-1,"error in communication \n");
 
 
   //requesting and receving map
   char request_texture_map_for_server;
-  char texture_map[1024];
+  char texture_map[1000000];
   IdPacket* request_map=(IdPacket*)malloc(sizeof(IdPacket));
+  PacketHeader request_map_head;
+  request_map->header=&request_map_head;
   request_map->header->type=GetTexture;
   request_map->header->size=sizeof(IdPacket);
   request_map->id=id->id;
@@ -706,7 +607,7 @@ int main(int argc, char **argv) {
       ERROR_HELPER(-1, "Could not send my texture for server");
   }
 
-  while ((ret = recv(socket_desc, texture_map, msg_len, 0)) < 0){
+  while ((ret = recv(socket_desc, texture_map, sizeof(ImagePacket), 0)) < 0){
       if (errno == EINTR) continue;
       else if (errno == ENOTCONN) {
           printf("Server closed connection, could not receive texture map. Goodbye!");
@@ -715,6 +616,7 @@ int main(int argc, char **argv) {
       ERROR_HELPER(-1, "Could not read map texture from socket");
   }
 
+  msg_len=ret;
   texture_map[msg_len] = '\0';
 
   ImagePacket* map=Packet_deserialize(&texture_map,msg_len);
