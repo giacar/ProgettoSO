@@ -7,28 +7,28 @@
 
 ## Client
 ### Login:
-* Client inserisce username e password appena si connette: *todo*
+* Client inserisce username e password appena si connette: *done*
 * se utente non esiste allora i dati che ha inserito vengo usati per 
- registrare l'utente. 
-* se utente esiste, ma password non è corretta: server invia un 
+ registrare l'utente. *done*
+* Se utente esiste, ma password non è corretta: server invia un 
  messaggio di errore al client. Si apre un while nel quale il client
- può inserire la password corretta
-* se utente esiste e password corretta, allorat invia al server una 
+ può inserire la password corretta. *done*
+* Se utente esiste e password corretta, allora invia al server una 
  richiesta di tutti i dati della precedente sessione e il server 
- risponde con tali dati 
+ risponde con tali dati. *done*
 
 ### Comunicazione TCP:
 * Al momento del login il server manda sul thread TCP ImagePackets
  contenenti id e texture di tutti i client presenti nel mondo e quelli che 
  arriveranno nel mondo. Quando il campo texture dell'ImagePacket è settato a
  NULL, vuol dire che quell'utente si è disconnesso e deve essere eliminato dal 
- mondo del client. *todo*
+ mondo del client. *done*
 * Inizializzazione client *done*
 * Come fare per disconnettersi: ad intervalli regolari, il client sul thread
  TCP chiede la lista degli utenti connessi. Se vede la presenza di un nuovo 
  utente, o nuovi utenti, chiede al server le loro texture e le aggiunge al 
  mondo. Se vede che nella lista non ci sono persone che sono presenti nel suo
- mondo (cioè nella sua lista), allora le rimuove dal suo mondo. *todo*
+ mondo (cioè nella sua lista), allora le rimuove dal suo mondo. *done*
 
 ### Comunicazione UDP:
 * Client, via UDP invia dei pacchetti VehicleUpdate al server. Il contenuto del 
@@ -37,7 +37,7 @@
  loro interno una lista collegata.Ricevuto questi pacchetti, smonta la lista 
  collegata all'interno e per ogni elemento della lista, preso l'id, preleva dal 
  mondo il veicolo con quell'id e ne aggiorna lo stato. I pacchetti di veicoli 
- ancora non aggiunti al proprio mondo vengono ignorati (per necessità). *todo*
+ ancora non aggiunti al proprio mondo vengono ignorati (per necessità). *done*
 
 ## Server
 ### Generale:

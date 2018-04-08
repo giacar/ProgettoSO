@@ -20,15 +20,31 @@ This project is licensed under the MIT License - see the [LICENSE.md](LICENSE.md
 
 Please see the [DOCUMENTATION.md](Documentation.md) file for details
 
-## To Do
+## Done
 
 ### Client-Side
 
 * Login system implementation
 * TCP-side implementation
+
+### Server-Side
+
+* Login system implementation
+
+## To Do
+
+### Client-Side
+
+* <s>Login system implementation</s>
+* <s>TCP-side implementation</s>
 * UDP-side implementation
 
 ### Server-Side
 
+* <s>Login system implementation</s>
 * TCP-side implementation
 * UDP-side implementation
+
+## Test and Bugs
+
+Test phase to discover bugs will start as soon as coding phase finish.
