@@ -121,8 +121,7 @@ void* thread_listener_tcp(void* client_args){
 
     while (1){
 
-        //Il server crea una lista collegata di stringhe che ha serializzato da pacchetti e ne invia una per volta, quando riceve quella con dentro scritto
-        //"Finish" possiamo fermarci
+        //Il server invia le celle dell'array dei connessi che non sono messe a NULL. Quando poi invia "Finish", vuol dire che ha finito.
 
         while ((ret = recv(socket_desc_TCP, user, msg_len, 0)) < 0){
             if (errno == EINTR) continue;
@@ -475,7 +474,7 @@ int main(int argc, char **argv) {
 		ERROR_HELPER(ret, "Failed to update login's state");
 	}
 
-	if (login_state) printf("\nWelcome back %s.", username);	
+	if (login_state) printf("\nWelcome back %s.", username);
 	else if (login_state == 0) printf("\nWelcome %s.", username);
 	else {
 		// Non c'è più posto tra gli user
@@ -558,7 +557,7 @@ int main(int argc, char **argv) {
 
 		ImagePacket *texture = (Image *)malloc(sizeof(ImagePacket));
 		if (texture == NULL) ERROR_HELPER(-1, "Failed to allocate respawn structure");
-		
+
 		while(1) {
 			ret = recv(arg->socket_desc, respawn+respawn_len, 1, 0);
 

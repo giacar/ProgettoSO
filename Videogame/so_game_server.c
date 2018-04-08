@@ -18,12 +18,20 @@ user_table[MAX_USER_NUM] utenti;
 // Creare lista di tutti i client connessi che verranno man mano aggiunti e rimossi
 // deve contenere ID texture. Stessa cosa vale con una lista di client disconnessi
 // in modo da ripristinare lo stato in caso di un nuovo login
-ListHead *online_client;
-ListHead *offline_client;
+client_connected * online_client[MAX_USER_NUM];    //vettore di puntatori a strutture dati client_connected
+client_disconnected * offline_client[MAX_USER_NUM];   //vettore di puntatori a strutture dati client_disconnected
 
 sem_t sem_onlinelist;
 sem_t sem_offlinelist;
 sem_t sem_utenti;
+
+
+/**
+NOTA PER IL SERVER: Quando c'è un errore su una socket di tipo ENOTCONN (sia UDP che TCP), allora vuol dire che il client si è disconnesso (indipendetemente
+se la disconnessione è avvenuta in maniera pulita oppure no). Ciò si verifica anche quando la recv e la receive_from restituiscono 0. In tal caso, il server
+dovrà salvare lo stato del client che si è disconnesso (semplicemente, si sposta il suo contenuto dalla sua cella di online_client alla sua cella di
+offline_client, e poi si mette a NULL la sua cella in online_client.
+**/
 
 
 
@@ -74,13 +82,13 @@ void* thread_server_TCP(void* thread_server_TCP_args){
 		login_reply = 0;	// È un nuovo user
 		int i;
 		for (i = 0; i < MAX_USER_NUM && utenti[i].username != NULL; i++);
-		
+
 		/**
 			Slot utenti disponibili terminati
 			Devo informare il client che gli slot sono terminati, in modo che termini e che il thread corrente termini
 		**/
 		if (i >= MAX_USER_NUM) login_reply = -1;
-		
+
 		else {
 			idx = i;
 			utenti[idx].username = user_att;
@@ -196,33 +204,82 @@ void* thread_server_TCP(void* thread_server_TCP_args){
 		if (req == "Respawn\n") {
 			// invio dati per il respawn
 			// [TODO]
+            //client deve recuperare il proprio id e la propria texture
             char[1024] respawn;
             int respawn_len;
-            ImagePacket* texture = (Image*) malloc(sizeof(Image));
+            ImagePacket* texture = (ImagePacket*) malloc(sizeof(ImagePacket));  //texture del client da ripristinare
             texture->header->size = sizeof(ImagePacket);
             texture->header->type = PostTexture;
-            client_disconnected* temp = offline_client;
-            while (temp != NULL) {
-                if (temp -> id == idx){
-                    texture->id = 0;
-                    texture->image = temp->texture;
-                    respawn_len = Packet_serialize(respawn, &(texture->header));
+            client_disconnected* temp = offline_client[idx];    //client interessato del respawn
+            texture->id = idx;
+            texture->image = temp->texture;
+            respawn_len = Packet_serialize(respawn, &(texture->header));
 
-                    while ((ret = send(arg->socket_desc_TCP_client, respawn, respawn_len, 0)) < 0){
-                        if (errno == EINTR) continue;
-                        else if (errno == ENOTCONN) {
-                            printf("Client closed connection.");
-                        }
-                        ERROR_HELPER(-1, "Error in sending client state to client");
-                    }
-
-                    break;
-
+            while ((ret = send(arg->socket_desc_TCP_client, respawn, respawn_len, 0)) < 0){
+                if (errno == EINTR) continue;
+                else if (errno == ENOTCONN) {
+                    printf("Client closed connection.");
                 }
-                else temp = temp->next;
+                ERROR_HELPER(-1, "Error in sending client state to client");
             }
+
+            //finito di inviare i dati per il respawn, bisogna spostare il client dall'array dei disconnessi a quello dei connessi
+            offline_client[idx] = NULL;
+            online_client[idx] = temp;
+
+
+
 		}
 	}
+
+    /**OK! Il client si è connesso, adesso ha bisogno di sapere le informazioni (texture) di tutti gli altri client che sono connessi nel mondo.
+    Spediamo al client ogni
+    cella dell'aria di client connessi che non è messa a NULL, sottoforma di ImagePacket.
+    Da questo momento in poi, se il client si disconnette, in qualsiasi modo, c'è bisogno di salvare il suo stato
+    **/
+
+    int j;
+    char[1024] client_connesso;
+    size_t msg_len;
+    ImagePacket* client = (ImagePacket*) malloc(sizeof(ImagePacket));
+    client->header->type = PostTexture;
+    client->header->size = sizeof(ImagePacket);
+
+    for (j = 0; j < MAX_USER_NUM; j++){
+        if (client_connected[j] != NULL && j != idx){
+            client->id = j; //(?)
+            client->texture = client_connected[j]->texture;
+
+            msg_len = Packet_serialize(client_connesso, &(client->header));
+
+            while ((ret = send(arg->socket_desc_TCP_client, client_connesso, msg_len, 0))<0){
+                if (errno == EINTR) continue;
+                else if (errno == ENOTCONN) {
+                    printf("Client closed connection\n");
+                    client_connected* temp = client_connected[idx];
+                    client_connected[idx] = NULL;
+                    client_disconnected[idx] = temp;
+                }
+                ERROR_HELPER(-1, "Could not send data over socket");
+            }
+        }
+    }
+
+    //invio del messaggio "Finish" che determina la fine dell'invio dello stato di tutti gli altri connessi
+
+    client_connesso = "Finish";
+    msg_len = strlen(client_connesso);
+
+    while((ret = send(arg->socket_desc_TCP_client, client_connesso, msg_len, 0))<0){
+        if (errno == EINTR) continue;
+        else if (errno == ENOTCONN) {
+            printf("Client closed connection\n");
+            client_connected* temp = client_connected[idx];
+            client_connected[idx] = NULL;
+            client_disconnected[idx] = temp;
+        }
+        ERROR_HELPER(-1, "Could not send data over socket");
+    }
 
 
 
@@ -292,15 +349,15 @@ int main(int argc, char **argv) {
     printf("Fail! \n");
   }
 
-  // Inizializzo le due liste dei client connessi e disconnessi
+   // Inizializzo i due array di client connessi e disconnessi
 
-  online_client = (ListHead *)malloc(sizeof(ListHead));
-  if (online_client == NULL) ERROR_HELPER(-1, "Failed to allocate list of online clients");
+    int i;
+    for (i = 0; i < MAX_USER_NUM; i++){
+        online_client[i] = NULL;
+        offline_client[i] = NULL;
+    }
 
-  offline_client = (ListHead *)malloc(sizeof(ListHead));
-  if (offline_client == NULL) ERROR_HELPER(-1, "Failed to allocate list of offline clients");
-
-	int ret;
+    int ret;
 
 	// inizializzo i semafori di mutex per online client e offline client list e per tabella utenti
 
@@ -410,14 +467,6 @@ int main(int argc, char **argv) {
 
 	 ret = pthread_detach(thread);
 	 ERROR_HELPER(ret, "Could not detach thread");
-
-
-
-
-
-
-
-
 
 
 
