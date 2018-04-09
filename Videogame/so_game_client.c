@@ -442,8 +442,99 @@ int main(int argc, char **argv) {
 			ERROR_HELPER(ret, "Failed to receive login's state");
 		}
 	}
+	
+	int my_id;
+	Image* my_texture_from_server;
 
-	if (login_state == 0) printf("You're signed up with user: %s, welcome to the game!\n", username);	//password salvata
+	if (login_state == 0){
+		 printf("You're signed up with user: %s, welcome to the game!\n", username);	//password salvata
+		 
+		  //requesting and receving the ID
+		  IdPacket* request_id=(IdPacket*)malloc(sizeof(IdPacket));
+		  PacketHeader id_head;
+		  request_id->header=&id_head;
+		  request_id->header->type=GetId;
+		  request_id->header->size=sizeof(IdPacket);
+		  request_id->id=-1;
+
+		  char idPacket_request[1000000];
+		  char idPacket[1000000];
+		  size_t idPacket_request_len = Packet_serialize(&idPacket_request,&(request_id->header));
+		  size_t msg_len;
+
+
+		  while ((ret = send(socket_desc, idPacket_request, idPacket_request_len, 0)) < 0){
+			if (errno == EINTR) continue;
+			else if (errno == ENOTCONN) {
+				printf("Server closed connection, could not send id request. Goodbye!");
+				exit(0);
+			}
+			ERROR_HELPER(-1, "Could not send id request  to socket");
+		  }
+
+		  while ((ret = recv(socket_desc, idPacket, sizeof(IdPacket), 0)) < 0){
+			if (errno == EINTR) continue;
+			else if (errno == ENOTCONN) {
+				printf("Server closed connection, could not receive id. Goodbye");
+				exit(0);
+			}
+			ERROR_HELPER(-1, "Could not read id from socket");
+		  }
+		  msg_len=ret;
+		  idPacket[msg_len] = '\0';
+
+		  IdPacket* id=Packet_deserialize(idPacket, msg_len);
+		  if(id->header->type!=GetId) ERROR_HELPER(-1,"Error in packet type \n");
+
+
+		  // sending my texture
+		  char texture_for_server[1000000];
+
+
+		  ImagePacket* my_texture=malloc(sizeof(ImagePacket));
+		  PacketHeader img_head;
+		  my_texture->header=&img_head;
+		  my_texture->header->type=PostTexture;
+		  my_texture->header->size=sizeof(ImagePacket);
+		  my_texture->id=id->id;
+		  my_texture->image=&my_texture_for_server;
+
+		  size_t texture_for_server_len = Packet_serialize(texture_for_server, &(my_texture->header));
+
+
+		  while ((ret = send(socket_desc, texture_for_server, texture_for_server_len, 0) < 0){
+			  if (errno == EINTR) continue;
+			  else if (errno == ENOTCONN) {
+				  printf("Server closed connection, could non send texture_for_server. Goodbye!");
+				  exit(0);
+			  }
+			  ERROR_HELPER(-1, "Could not send my texture for server");
+		  }
+		  // receving my texture from server
+
+		  char my_texture_from_server[1000000];
+
+			while ((ret = recv(socket_desc, my_texture_from_server, sizeof(ImagePacket), 0)) < 0){
+			  if (errno == EINTR) continue;
+			  else if (errno == ENOTCONN) {
+				  printf("Server closed connection, could not receive my_texture_from_server. Goodbye!");
+				  exit(0);
+			  }
+			  ERROR_HELPER(-1, "Could not read my texture from socket");
+		  }
+		  
+		  msg_len=ret;
+		  my_texture_from_server[msg_len] = '\0';
+
+		  ImagePacket* my_texture_received=Packet_deserialize(&my_texture_from_server,msg_len);
+		  if(my_texture_received!=my_texture) ERROR_HELPER(-1,"error in communication: texture not matching! \n");
+		  
+		  // these come from the server
+		  my_id = id->id;
+		  my_texture_from_server = my_texture_received->image;
+				 
+				 
+	 }
 
   	/** Se utente esiste e la password è corretta, allora il server gli invia il suo id, così il client potrà utilizzarlo successivamente quando spedirà 
   	 * l'IdPacket e per ricevere la texture
@@ -452,7 +543,45 @@ int main(int argc, char **argv) {
 
    	else if (login_state == 1) {
    		printf("Login success, welcome back %s\n", username);
+		  //requesting and receving texture and id
+		  IdPacket* request_texture=(IdPacket*)malloc(sizeof(IdPacket));
+		  PacketHeader request_texture_head;
+		  request_texture->header=&request_texture_head;
+		  request_texture->id=-1; //ancora non lo conosco lo scopro nella risposta
+		  request_texture->header->size=sizeof(IdPacket);
+		  request_texture->header->type=GetTexture;
 
+		  char request_texture_for_server[1000000];
+		  char my_texture[1000000];
+		  size_t request_texture_len =Packet_serialize(request_texture_for_server, &(request_texture->header));
+		  size_t msg_len;
+
+		  while ((ret = send(socket_desc, request_texture_for_server, request_texture_for_server_len, 0) < 0){
+			  if (errno == EINTR) continue;
+			  else if (errno == ENOTCONN) {
+				  printf("Server closed connection, could not send request texture. Goodbye!");
+				  exit(0);
+			  }
+			  ERROR_HELPER(-1, "Could not send my texture for server");
+		  }
+
+		  while ((ret = recv(socket_desc, my_texture,sizeof(ImagePacket), 0)) < 0){
+			  if (errno == EINTR) continue;
+			  else if (errno == ENOTCONN) {
+				  printf("Server closed connection, could not receive my texture. Goodbye!");
+				  exit(0);
+			  }
+			  ERROR_HELPER(-1, "Could not read my texture from socket");
+		  }
+
+		  msg_len=ret;
+		  my_texture[msg_len] = '\0';
+		  ImagePacket* my_texture_received= Packet_deserialize(my_texture,msg_len);
+		  if(my_texture_received->header->type!=PostTexture && my_texture_received->id==0) ERROR_HELPER(-1,"error in communication \n");
+		  
+		  // these come from the server
+		  my_id = my_texture_received_id;
+		  my_texture_from_server = my_texture_received->image;
 
 
 		// ricezione ID in modo da inserirla successivamente nel ID packet
@@ -470,98 +599,21 @@ int main(int argc, char **argv) {
   texture dal client e gliela reinvia. Altrimenti, lui la prende dalla sua cella di client_connected (o disconnected //DA DEFINIRE!) e gliela reinvia.
   **/
 
-  //requesting and receving the ID
-  IdPacket* request_id=(IdPacket*)malloc(sizeof(IdPacket));
-  PacketHeader id_head;
-  request_id->header=&id_head;
-  request_id->header->type=GetId;
-  request_id->header->size=sizeof(IdPacket);
-  request_id->id=-1;
-
-  char idPacket_request[1000000];
-  char idPacket[1000000];
-  size_t idPacket_request_len = Packet_serialize(&idPacket_request,&(request_id->header));
-  size_t msg_len;
-
-
-  while ((ret = send(socket_desc, idPacket_request, idPacket_request_len, 0)) < 0){
-    if (errno == EINTR) continue;
-    else if (errno == ENOTCONN) {
-        printf("Server closed connection, could not send id request. Goodbye!");
-        exit(0);
-    }
-    ERROR_HELPER(-1, "Could not send id request  to socket");
-  }
-
-  while ((ret = recv(socket_desc, idPacket, sizeof(IdPacket), 0)) < 0){
-    if (errno == EINTR) continue;
-    else if (errno == ENOTCONN) {
-        printf("Server closed connection, could not receive id. Goodbye");
-        exit(0);
-    }
-    ERROR_HELPER(-1, "Could not read id from socket");
-  }
-  msg_len=ret;
-  idPacket[msg_len] = '\0';
-
-  IdPacket* id=Packet_deserialize(idPacket, msg_len);
-  if(id->header->type!=GetId) ERROR_HELPER(-1,"Error in packet type \n");
-
-
-  // sending my texture
-  char texture_for_server[1000000];
-
-
-  ImagePacket* my_texture=malloc(sizeof(ImagePacket));
-  PacketHeader img_head;
-  my_texture->header=&img_head;
-  my_texture->header->type=PostTexture;
-  my_texture->header->size=sizeof(ImagePacket);
-  my_texture->id=id->id;
-  my_texture->image=&my_texture_for_server;
-
-  size_t texture_for_server_len = Packet_serialize(texture_for_server, &(my_texture->header));
-
-
-  while ((ret = send(socket_desc, texture_for_server, texture_for_server_len, 0) < 0){
-      if (errno == EINTR) continue;
-      else if (errno == ENOTCONN) {
-          printf("Server closed connection, could non send texture_for_server. Goodbye!");
-          exit(0);
-      }
-      ERROR_HELPER(-1, "Could not send my texture for server");
-  }
-  // receving my texture from server
-
-  char my_texture_from_server[1000000];
-
-    while ((ret = recv(socket_desc, my_texture_from_server, sizeof(ImagePacket), 0)) < 0){
-      if (errno == EINTR) continue;
-      else if (errno == ENOTCONN) {
-          printf("Server closed connection, could not receive my_texture_from_server. Goodbye!");
-          exit(0);
-      }
-      ERROR_HELPER(-1, "Could not read my texture from socket");
-  }
   
-  msg_len=ret;
-  my_texture_from_server[msg_len] = '\0';
-
-  ImagePacket* my_texture_received=Packet_deserialize(&my_texture_from_server,msg_len);
-  if(my_texture_received!=my_texture) ERROR_HELPER(-1,"error in communication: texture not matching! \n");
 
 
   //requesting and receving elevation map
   IdPacket* request_elevation=(IdPacket*)malloc(sizeof(IdPacket));
   PacketHeader request_elevation_head;
   request_elevation->header=&request_elevation_head;
-  request_elevation->id=id->id;
+  request_elevation->id=my_id;
   request_elevation->header->size=sizeof(IdPacket);
   request_elevation->header->type=GetElevation;
 
   char request_elevation_for_server[1000000];
   char elevation_map[1000000];
   size_t request_elevation_len =Packet_serialize(request_elevation_for_server, &(request_elevation->header));
+  size_t msg_len;
 
   while ((ret = send(socket_desc, request_elevation_for_server, request_elevation_for_server_len, 0) < 0){
       if (errno == EINTR) continue;
@@ -595,7 +647,7 @@ int main(int argc, char **argv) {
   request_map->header=&request_map_head;
   request_map->header->type=GetTexture;
   request_map->header->size=sizeof(IdPacket);
-  request_map->id=id->id;
+  request_map->id=my_id;
   size_t request_texture_map_for_server_len=Packet_serialize(&request_texture_map_for_server, &(request_map->header));
 
     while ((ret = send(socket_desc, request_texture_map_for_server, request_texture_map_for_server_len, 0) < 0){
@@ -625,10 +677,10 @@ int main(int argc, char **argv) {
 
 
   // these come from the server
-  int my_id = id->id;
+
   Image* map_elevation = elevation->image;
   Image* map_texture = map->image;
-  Image* my_texture_from_server = my_texture_received->image;
+
 
   // construct the world
   World_init(&world, map_elevation, map_texture, 0.5, 0.5, 0.5);
