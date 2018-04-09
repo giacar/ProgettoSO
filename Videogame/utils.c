@@ -8,7 +8,8 @@
 int recv_TCP(int socket, void *buf, size_t len, int flags) {
 	int ret, bytes_read = 0;
 
-	// Ricezione conoscendo la dimensione (len != 1)
+	// Ricezione conoscendo la dimensione (len > 1)
+
 	if (len > 1) {
 
 		do {
@@ -24,11 +25,14 @@ int recv_TCP(int socket, void *buf, size_t len, int flags) {
 
 	}
 
-	// Ricezione non conoscendo la dimensione (len == -1)
+	// Ricezione non conoscendo la dimensione (len == 1)
 
 	else {
 	
-		while ((ret = recv(socket, buf+bytes_read, len, flags)) < 0) {
+		while (1) {
+			
+			ret = recv(socket, buf+bytes_read, len, flags);
+
 			if (errno == EINTR) continue;
 			if (errno == ENOTCONN) {
 				printf("Connection closed\n");
@@ -42,15 +46,11 @@ int recv_TCP(int socket, void *buf, size_t len, int flags) {
 			}
 
 			bytes_read++;
+
 		}
 
 		ret = bytes_read;
 
-	}
-
-	if (errno == ENOTCONN) {
-		printf("Connection closed\n");
-		ret = -1;
 	}
 
 	return ret;
@@ -59,7 +59,10 @@ int recv_TCP(int socket, void *buf, size_t len, int flags) {
 int send_TCP(int socket, void *buf, size_t len, int flags) {
 	int ret, bytes_sent = 0;
 
-	while ((ret = recv(socket, buf+bytes_sent, len-bytes_sent, flags) < 0) {
+	while (1) {
+		
+		ret = recv(socket, buf+bytes_sent, len-bytes_sent, flags);
+
 		if (errno == EINTR) {
 			bytes_sent += ret;
 			continue;
@@ -71,6 +74,9 @@ int send_TCP(int socket, void *buf, size_t len, int flags) {
 		}
 
 		bytes_sent += ret;
+
+		if (bytes_sent == len) break;
+
 	}
 
 	ret = bytes_sent;
@@ -81,7 +87,7 @@ int send_TCP(int socket, void *buf, size_t len, int flags) {
 int recv_UDP(int socket, void *buf, size_t len, int flags, struct sockaddr *src_addr, socklen_t *addrlen) {
 	int ret, bytes_read = 0;
 
-	// Ricezione conoscendo la dimensione (len != 1)
+	// Ricezione conoscendo la dimensione (len > 1)
 	if (len > 1) {
 
 		do {
@@ -97,11 +103,14 @@ int recv_UDP(int socket, void *buf, size_t len, int flags, struct sockaddr *src_
 
 	}
 
-	// Ricezione non conoscendo la dimensione (len == -1)
+	// Ricezione non conoscendo la dimensione (len == 1)
 
 	else {
 	
-		while ((ret = recv(socket, buf+bytes_read, len, flags)) < 0) {
+		while (1) {
+			
+			ret = recv(socket, buf+bytes_read, len, flags);
+
 			if (errno == EINTR) continue;
 			if (errno == ENOTCONN) {
 				printf("Connection closed\n");
@@ -115,15 +124,11 @@ int recv_UDP(int socket, void *buf, size_t len, int flags, struct sockaddr *src_
 			}
 
 			bytes_read++;
+
 		}
 
 		ret = bytes_read;
 
-	}
-
-	if (errno == ENOTCONN) {
-		printf("Connection closed\n");
-		ret = -1;
 	}
 
 	return ret;
@@ -132,7 +137,10 @@ int recv_UDP(int socket, void *buf, size_t len, int flags, struct sockaddr *src_
 int send_UDP(int socket, const void *buf, size_t len, int flags, const struct sockaddr *dest_addr, socklen_t addrlen) {
 	int ret, bytes_sent = 0;
 
-	while ((ret = sendto(socket, buf+bytes_sent, len-bytes_sent, flags, dest_addr, addrlen) < 0) {
+	while (1) {
+		
+		ret = sendto(socket, buf+bytes_sent, len-bytes_sent, flags, dest_addr, addrlen);
+
 		if (errno == EINTR) {
 			bytes_sent += ret;
 			continue;
@@ -144,6 +152,9 @@ int send_UDP(int socket, const void *buf, size_t len, int flags, const struct so
 		}
 
 		bytes_sent += ret;
+
+		if (bytes_sent == len) break;
+		
 	}
 
 	ret = bytes_sent;
@@ -151,4 +162,4 @@ int send_UDP(int socket, const void *buf, size_t len, int flags, const struct so
 	return ret;
 }
 
-// DA RIVEDERE CORRETTEZZA
+// DA CONTROLLARNE LA CORRETTEZZA

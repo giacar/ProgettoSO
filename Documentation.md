@@ -43,9 +43,25 @@
 ### Generale:
 * Server avrà thread principale che accetta connessioni TCP, un thread per 
  client dove comunica in maniera TCP, e un thread UDP dove riceve tutti gli 
- update per ogni client e li aggiunge a una lista di VehicleUpdates. Ad 
- intervalli regolari, inserisce nei veicoli presenti nel suo mondo, tutte le
- forze prelevate dai VehicleUpdates e le aggiorna ai veicoli che c'ha. Se lui 
+ update per ogni client e li aggiunge a una lista di VehicleUpdates.
+* Quando le funzioni send e recv restituiscono ENOTCONN vuol dire che il client
+ si è disconnesso. In quel caso bisogna quindi eliminarlo dai client connessi ed 
+ inserirlo in quelli disconnessi. *todo*
+
+### Login:
+#### Comunicazione TCP:
+* La comunicazione consiste nella ricezione dell' username, c'è un controllo nella 
+ tabella degli user, in caso negativo avviene la registrazione. In tutte e due casi
+ si riceve la password, se non registrato la si salva nella tabella degli utenti,
+ altrimenti si controlla correttezza. In caso di password la si chiede finché non è
+ giusta. *done*
+* Successivamente viene ripristinato il precedente stato se già registrato. *todo*
+* Bisogna infine informare il client di tutti gli altri suoi compagni, inviando
+ quindi le texture di tutti gli altri client connessi. *done*
+
+### Comunicazione UDP: 
+* Ad intervalli regolari, inserisce nei veicoli presenti nel suo mondo, tutte le
+ forze prelevate dai VehicleUpdates e le aggiorna ai veicoli che ha. Se lui 
  riceve dati di client che ancora non sono presenti nel suo mondo, allora li 
  ignora. Successivamente, aggiorna il mondo (WorldUpdate), aggiornato il mondo
  prende tutte le posizioni dei veicoli che sono nel suo mondo, le inserisce in
@@ -54,5 +70,3 @@
 * Quando riceve la richiesta di tutti gli utenti connessi, restituisce tutti 
  gli utenti connessi. Quando riceve un pacchetto in cui è specificato un id e 
  una GetTexture, restituisce la texture relativa a quell'id. *todo*
-* Quando il server riceve una stringa con su scritto "quit", allora lo rimuove 
- dalla lista dei client connessi. *todo*
