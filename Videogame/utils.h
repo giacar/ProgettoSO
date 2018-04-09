@@ -36,4 +36,18 @@ typedef struct client_disconnected{ //lista dei client che si sono disconnessi, 
 
 //Quando un client si disconnette, lo rimuoviamo dalla lista di client_connected e lo aggiungiamo a quella di client_disconnected
 
+// Funzione di ricezione TCP
 
+int recv_TCP(int socket, void *buf, size_t len, int flags);
+
+// Funzione di invio TCP
+
+int send_TCP(int socket, const void *buf, size_t len, int flags);
+
+// Funzione di ricezione UDP
+
+int recv_UDP(int socket, void *buf, size_t len, int flags, struct sockaddr *src_addr, socklen_t *addrlen);
+
+// Funzione di invio UDP
+
+int send_UDP(int socket, const void *buf, size_t len, int flags, const struct sockaddr *dest_addr, socklen_t addrlen);
