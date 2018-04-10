@@ -59,13 +59,9 @@ void* thread_listener_tcp(void* client_args){
     char user[DIM_BUFF];
     int msg_len;
 
-
-    char* finish_command = FINISH_COMMAND;
-    size_t finish_command_len = strlen(finish_command);
-
     while (1){
 
-        //Il server invia le celle dell'array dei connessi che non sono messe a NULL. Quando poi invia "Finish", vuol dire che ha finito.
+        //Il server invia le celle dell'array dei connessi che non sono messe a NULL.
 
         /*while ((ret = recv(socket_desc_TCP, user, sizeof(ImagePacket), 0)) < 0){
             if (errno == EINTR) continue;
@@ -109,7 +105,7 @@ void* thread_listener_tcp(void* client_args){
 
 }
 
-void* thread_listener_udp(void* client_args){   //todo
+void* thread_listener_udp(void* client_args){
 
     /**COMUNICAZIONE UDP**/
     /**
@@ -132,8 +128,9 @@ void* thread_listener_udp(void* client_args){   //todo
 
 
     /**
-    Ciclo while che opera fino a quando il client è in funzione. Quando non deve più lavorare, riceve un segnale di quit (DA IMPLEMENTARE)
+    Ciclo while che opera fino a quando il client è in funzione.
     **/
+
     while(1){
 
 
@@ -353,12 +350,6 @@ int main(int argc, char **argv) {
 	ret = bind(socket_desc_UDP, (struct sockaddr*) &server_addr_UDP, sizeof(struct sockaddr_in));
 	ERROR_HELPER(ret, "Could not connect to socket (udp)");
 
-	/**
-	//inizializziamo il pacchetto di quit, con variabile int quit settata a 0, ovviamente all'inizio non è in sezione critica
-	quit_packet -> quit = 0;
-	quit_packet -> socket_desc_TCP = socket_desc;
-	**/
-
 	/**LOGIN**/
 	/** Client inserisce username e password appena si connette:
 	*   -se utente non esiste allora i dati che ha inserito vengono usati per registrare l'utente
@@ -439,7 +430,7 @@ int main(int argc, char **argv) {
 		scanf("%s", password);
 		printf("\n");
 		pass_length = strlen(password);
-		
+
 		/*while((ret = send(socket_desc, password, pass_length, 0)) < 0) {
 			if (errno == EINTR) continue;
             else if (errno == ENOTCONN) {

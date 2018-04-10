@@ -23,7 +23,7 @@ client_disconnected  offline_client[MAX_USER_NUM];   //vettore di puntatori a st
 
 
 sem_t sem_utenti;
-
+sem_t sem_thread_UDP;
 
 /**
 NOTA PER IL SERVER: Quando c'è un errore su una socket di tipo ENOTCONN (sia UDP che TCP), allora vuol dire che il client si è disconnesso (indipendetemente
@@ -49,6 +49,9 @@ void* thread_server_TCP(void* thread_server_TCP_args){
     char pass_giusta[64];
     int login_reply;
     int id_utente = -1;
+    int login_status        //questa variabile serve per far capire al server se il client che si è connesso è un nuovo utente oppure si era già registrato
+
+    //l'utilizzo della sola variabile login_reply non permette di identificare i due tipi di client, perchè viene modificata per altri scopi
 
     // Ricezione dell'user
     /*while (1) {
@@ -66,7 +69,11 @@ void* thread_server_TCP(void* thread_server_TCP_args){
       bytes_read++;
     }*/
     ret = recv_TCP(socket, user_att, 1, 0);
-    PTHREAD_ERROR_HELPER(ret, "Failed to read username from client");
+    if (ret == -2){
+        printf("Could not receive client username\n");
+        pthread_exit(0);
+    }
+    else PTHREAD_ERROR_HELPER(ret, "Failed to read username from client");
 
     ret = sem_wait(&sem_utenti);
     ERROR_HELPER(ret, "Error in sem_utenti wait");
@@ -83,6 +90,7 @@ void* thread_server_TCP(void* thread_server_TCP_args){
 	if (idx == -1) {
 		// inserisco user nel primo slot libero
 		login_reply = 0;	// È un nuovo user
+        login_status = login_reply;
 		int i;
 		for (i = 0; i < MAX_USER_NUM && utenti[i].username != NULL; i++);
 
@@ -106,7 +114,11 @@ void* thread_server_TCP(void* thread_server_TCP_args){
 			ERROR_HELPER(ret, "Failed to send login_reply to client");
 		}*/
         ret = send_TCP(socket, &login_reply, sizeof(int), 0);
-        PTHREAD_ERROR_HELPER(ret, "Failed to send login_reply to client");
+        if (ret == -2) {
+            printf("Could not send login_reply to client\n");
+            pthread_exit(0);
+        }
+        else PTHREAD_ERROR_HELPER(ret, "Failed to send login_reply to client");
 
 		if (login_reply == -1){
             ret=close(socket);
@@ -130,7 +142,11 @@ void* thread_server_TCP(void* thread_server_TCP_args){
         	bytes_read++;
         }*/
         ret = recv_TCP(socket, pass_att, 1, 0);
-        PTHREAD_ERROR_HELPER(ret, "Failed to read password from client");
+        if (ret == -2){
+             printf("Could not receive password from client\n");
+             pthread_exit(0);
+        }
+        else PTHREAD_ERROR_HELPER(ret, "Failed to read password from client");
 
 
 
@@ -156,12 +172,17 @@ void* thread_server_TCP(void* thread_server_TCP_args){
 
 		// informo il client che è già registrato
 		login_reply = 1;
+        login_status = login_reply;
 		/*while ((ret = send(socket, &login_reply, sizeof(int), 0)) < 0) {
 			if (errno == EINTR) continue;
 			ERROR_HELPER(-1, "Failed to send login_reply to client");
 		}*/
         ret = send_TCP(socket, &login_reply, sizeof(int), 0);
-        PTHREAD_ERROR_HELPER(ret, "Failed to send login_reply to client");
+        if (ret == -2) {
+            printf("Could not send login_reply to client\n");
+            pthread_exit(0);
+        }
+        else PTHREAD_ERROR_HELPER(ret, "Failed to send login_reply to client");
 
 		//ricezione password
 		do {
@@ -181,7 +202,11 @@ void* thread_server_TCP(void* thread_server_TCP_args){
 				bytes_read++;
 			}*/
             ret = recv_TCP(socket, pass_att, 1, 0);
-            PTHREAD_ERROR_HELPER(ret, "Failed to read password from client");
+            if (ret == -2) {
+                printf("Could not receive password from client\n");
+                pthread_exit(0);
+            }
+            else PTHREAD_ERROR_HELPER(ret, "Failed to read password from client");
 
 			// password giusta
 			if (!strcmp(pass_att,pass_giusta)) {
@@ -192,6 +217,10 @@ void* thread_server_TCP(void* thread_server_TCP_args){
                     break;
 				}*/
                 ret = send(socket, &login_reply, sizeof(int), 0);
+                if (ret == -2) {
+                    printf("Could not send login_reply to client\n");
+                    pthread_exit(0);
+                }
 			}
 
 			else {
@@ -201,7 +230,11 @@ void* thread_server_TCP(void* thread_server_TCP_args){
 					ERROR_HELPER(-1, "Failed to send login_reply to client");
 				}*/
                 ret = send_TCP(socket, &login_reply, sizeof(int), 0);
-                PTHREAD_ERROR_HELPER(ret, "Failed to send login_reply to client");
+                if (ret == -2){
+                     printf("Could not send login_reply to client\n");
+                     pthread_exit(0);
+                }
+                else PTHREAD_ERROR_HELPER(ret, "Failed to send login_reply to client");
 			}
 		} while (strcmp(pass_att,pass_giusta));
 
@@ -211,7 +244,6 @@ void* thread_server_TCP(void* thread_server_TCP_args){
 
     /**OK! Il client si è connesso, adesso ha bisogno di sapere le informazioni (texture) di tutti gli altri client che sono connessi nel mondo.
     Spediamo al client ogni cella dell'array di client connessi che non è messa a NULL, sottoforma di ImagePacket.
-    Da questo momento in poi, se il client si disconnette, in qualsiasi modo, c'è bisogno di salvare il suo stato
     **/
 
     int j;
@@ -241,33 +273,115 @@ void* thread_server_TCP(void* thread_server_TCP_args){
                 ERROR_HELPER(-1, "Could not send data over socket");
             }*/
             ret = send_TCP(socket, client_connesso, msg_len, 0);
-            PTHREAD_ERROR_HELPER(ret, "Could not send data over socket");
+            if (ret == -2){
+                printf("Could not send data over socket\n");
+                //pthread_exit(0);
+            }
+            else PTHREAD_ERROR_HELPER(ret, "Could not send data over socket");
         }
     }
 
-    //invio del messaggio "Finish" che determina la fine dell'invio dello stato di tutti gli altri connessi
-
-    client_connesso = "Finish";
-    msg_len = strlen(client_connesso);
-
-    /*while((ret = send(socket, client_connesso, msg_len, 0))<0){
-        if (errno == EINTR) continue;
-        else if (errno == ENOTCONN) {
-            printf("Client closed connection\n");
-            client_connected* temp = client_connected[idx];
-            client_connected[idx] = NULL;
-            client_disconnected[idx] = temp;
-        }
-        ERROR_HELPER(-1, "Could not send data over socket");
-    }*/
-    ret = send_TCP(socket, client_connesso, msg_len, 0);
-    PTHREAD_ERROR_HELPER(ret, "Could not send data over socket");
-
-
-
-
 
 	//entrare nel loop di ricezione richiesta e comunicazione nuove connessioni / disconnessioni
+
+    //nuovo utente: richiesta di id
+
+    if (login_status == 0){
+
+        char idPacket[DIM_BUFF];
+
+        ret = recv_TCP(socket, idPacket, sizeof(idPacket), 0);
+        if (ret == -2){
+            printf("Could not receive id request from client\n");
+            //pthread_exit(0);
+        }
+        PTHREAD_ERROR_HELPER(ret, "Could not receive id request from client");
+
+        msg_len = ret;
+        idPacket[msg_len] = '\0';
+
+        IdPacket* id = Packet_deserialize(idPacket, msg_len);
+        if (id->header->type != GetId) PTHREAD_ERROR_HELPER(-1, "Error in packet type (client id)");
+
+        if (id->id == -1){
+            id->id = idx;
+            size_t idPacket_response_len;
+            idPacket_response_len = Packet_serialize(idPacket, &(id->header));
+
+            ret = send_TCP(socket, idPacket, idPacket_response_len, 0);
+            if (ret == -2){
+                printf("Could not send id response to client\n");
+                //pthread_exit(0);
+            }
+            PTHREAD_ERROR_HELPER(ret, "Could not send id response to client\n");
+
+
+        }
+        else{
+            PTHREAD_ERROR_HELPER(-1, "Error in id packet request!");
+            //pthread_exit(0);
+        }
+
+        //nuovo utente: invia la sua texture
+
+        char texture_utente[DIM_BUFF];
+
+        ret = recv_TCP(socket, texture_utente, sizeof(ImagePacket), 0);
+        if (ret == -2){
+            printf("Could not receive client texture\n");
+            //pthread_exit(0);
+        }
+        PTHREAD_ERROR_HELPER(ret, "Could not receive client texture");
+
+        msg_len = ret;
+        texture_utente[msg_len] = '\0';
+
+        ImagePacket* client_texture = Packet_deserialize(texture_utente, msg_len);
+        if (client_texture->header->type!=GetTexture) PTHREAD_ERROR_HELPER(-1, "Error in client texture packet!");
+
+        client_connected[idx]->id = idx;
+        client_connected[idx]->texture = client_texture->texture;
+
+        int texture_utente_len;
+        texture_utente_len = Packet_serialize(texture_utente, &(client_texture->header));
+
+        ret = send_TCP(socket, texture_utente, texture_utente_len, 0);
+        if (ret == -2){
+            printf("Could not send client texture\n");
+            //pthread_exit(0);
+        }
+        else PTHREAD_ERROR_HELPER(ret, "Could not send client texture\n");
+
+
+    }
+
+    else if (login_status == 1){
+        //todo
+    }
+
+    //utente invia la richiesta di elevation map
+
+    char elevation_map[DIM_BUFF];
+
+    ret = recv_TCP(socket, elevation_map, sizeof(ImagePacket), 0);
+    if (ret == -2) {
+        printf("Could not receive elevation map request\n");
+        //pthread_exit(0);
+    }
+    else PTHREAD_ERROR_HELPER(ret, "Could not receive elevation map request");
+
+    msg_len = ret;
+    elevation_map[msg_len] = '\0';
+
+    ImagePacket* elevation= Packet_deserialize(elevation_map,msg_len);
+    if(elevation->header->type!=GetElevation) ERROR_HELPER(-1,"error in communication \n");
+
+
+    //terminare con invio della elevation map e della mappa
+
+
+
+
 
 
 
@@ -374,21 +488,32 @@ int main(int argc, char **argv) {
     ret=bind(server_socket_UDP,(struct sockaddr*) &server_addr_UDP,sizeof(struct sockaddr_in);
     ERROR_HELPER(ret,"error binding socket  UDP \n");
 
-    //creo il thread che si occuperà di ricevere via UDP le forze e che invierà le nuove poiszioni dopo aver integrato il mondo
+    //creo i thread che si occuperanno di ricevere le forze dai vari client e di inviare un world update packet a tutti i client (UDP)
 
-    pthread_t thread;
+    ret = sem_init(&sem_thread_UDP, 1, 0);
+	ERROR_HELPER(ret, "Failed to initialization of sem_thread_UDP");
+
+
+    pthread_t thread_UDP_receiver;
+    pthread_t thread_UDP_sender;
 
     thread_server_UDP_args* args_UDP=(thread_server_UDP_args*)malloc(sizeof(thread_server_UDP_args));
-        args_UDP->socket_desc_UDP_server=server_socket_UDP;
-        args_UDP->connected=online_client;
-        args_UDP->disconnected=offline_client;
+    args_UDP->socket_desc_UDP_server=server_socket_UDP;
+    args_UDP->connected=online_client;
+    args_UDP->disconnected=offline_client;
 
-    //creo il thread
+    //creo i thread
 
-    ret = pthread_create(&thread, NULL,thread_server_UDP,args_UDP);
+    ret = pthread_create(&thread_UDP_receiver, NULL,thread_server_UDP_receiver,args_UDP);
+    ERROR_HELPER(ret, "Could not create thread");
+
+    ret = pthread_create(&thread_UDP_sender, NULL, thread_server_UDP_sender, args_UDP);
     ERROR_HELPER(ret, "Could not create thread");
 
     // impongo di non aspettare terminazione in modo da non bloccare tutto il programma
+
+    ret = pthread_detach(thread);
+    ERROR_HELPER(ret, "Could not detach thread");
 
     ret = pthread_detach(thread);
     ERROR_HELPER(ret, "Could not detach thread");
