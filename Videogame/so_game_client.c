@@ -75,7 +75,7 @@ void* thread_listener_tcp(void* client_args){
             }
             ERROR_HELPER(-1, "Could not receive users already in world");
         }
-        
+
         msg_len=ret;
         user[msg_len]='\0';
 
@@ -442,13 +442,13 @@ int main(int argc, char **argv) {
 			ERROR_HELPER(ret, "Failed to receive login's state");
 		}
 	}
-	
+
 	int my_id;
 	Image* my_texture_from_server;
 
 	if (login_state == 0){
 		 printf("You're signed up with user: %s, welcome to the game!\n", username);	//password salvata
-		 
+
 		  //requesting and receving the ID
 		  IdPacket* request_id=(IdPacket*)malloc(sizeof(IdPacket));
 		  PacketHeader id_head;
@@ -522,21 +522,21 @@ int main(int argc, char **argv) {
 			  }
 			  ERROR_HELPER(-1, "Could not read my texture from socket");
 		  }
-		  
+
 		  msg_len=ret;
 		  my_texture_from_server[msg_len] = '\0';
 
 		  ImagePacket* my_texture_received=Packet_deserialize(&my_texture_from_server,msg_len);
 		  if(my_texture_received!=my_texture) ERROR_HELPER(-1,"error in communication: texture not matching! \n");
-		  
+
 		  // these come from the server
 		  my_id = id->id;
 		  my_texture_from_server = my_texture_received->image;
-				 
-				 
+
+
 	 }
 
-  	/** Se utente esiste e la password è corretta, allora il server gli invia il suo id, così il client potrà utilizzarlo successivamente quando spedirà 
+  	/** Se utente esiste e la password è corretta, allora il server gli invia il suo id, così il client potrà utilizzarlo successivamente quando spedirà
   	 * l'IdPacket e per ricevere la texture
    	*	[TODO]
    	**/
@@ -578,7 +578,7 @@ int main(int argc, char **argv) {
 		  my_texture[msg_len] = '\0';
 		  ImagePacket* my_texture_received= Packet_deserialize(my_texture,msg_len);
 		  if(my_texture_received->header->type!=PostTexture && my_texture_received->id==0) ERROR_HELPER(-1,"error in communication \n");
-		  
+
 		  // these come from the server
 		  my_id = my_texture_received_id;
 		  my_texture_from_server = my_texture_received->image;
@@ -586,20 +586,20 @@ int main(int argc, char **argv) {
 
 		// ricezione ID in modo da inserirla successivamente nel ID packet
 		// [TODO]
-		
+
 
 		// DA FINIRE E CONTROLLARNE LA CORRETTEZZA
    	}
 
   }
-  
+
   /**
   Se il client è un nuovo utente manderà la richiesta dell'id al server con un IdPacket col campo id settato a -1. Altrimenti, quel campo id sarà settato
   al suo id che aveva prima di disconnettersi. Tutto ciò serve per far capire al server da dove deve estrapolare la texture: se id = -1 allora riceve la
   texture dal client e gliela reinvia. Altrimenti, lui la prende dalla sua cella di client_connected (o disconnected //DA DEFINIRE!) e gliela reinvia.
   **/
 
-  
+
 
 
   //requesting and receving elevation map
@@ -727,11 +727,6 @@ int main(int argc, char **argv) {
 
   // cleanup
   World_destroy(&world);
-
-  /* Devo distruggere il semaforo ma non posso farlo successivamente a causa delle detach
-  ret = sem_destroy(&sem_quit_handle);
-  ERROR_HELPER(ret, "Could not destroy the semaphore");
-  */
 
   return 0;
 }
