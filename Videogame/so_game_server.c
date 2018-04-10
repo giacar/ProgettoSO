@@ -37,34 +37,36 @@ offline_client, e poi si mette a NULL la sua cella in online_client.
 
 void* thread_server_TCP(void* thread_server_TCP_args){
 
-	int ret, bytes_read = 0;
+    int ret/*, bytes_read = 0*/;
 
-	//implementare protoccollo login e aggiungere il nuovo client al mondo ed alla lista dei client connessi
-	thread_server_TCP_args *arg = (thread_server_TCP_args *)args;
-	int socket=args->socket_desc_TCP_client;
+    //implementare protoccollo login e aggiungere il nuovo client al mondo ed alla lista dei client connessi
+    thread_server_TCP_args *arg = (thread_server_TCP_args *)args;
+    int socket=args->socket_desc_TCP_client;
 
-	// Strutture dati per il Login
-	char[64] user_att;
-	char[64] pass_att;
-	char[64] pass_giusta;
-	int login_reply;
-	int id_utente = -1;
+    // Strutture dati per il Login
+    char user_att[64];
+    char pass_att[64];
+    char pass_giusta[64];
+    int login_reply;
+    int id_utente = -1;
 
-	// Ricezione dell'user
-	while (1) {
-		ret = recv(arg->socket_desc_TCP_client, user_att+bytes_read, 1, 0);
+    // Ricezione dell'user
+    /*while (1) {
+      ret = recv(socket, user_att+bytes_read, 1, 0);
 
-		if (ret == -1 && errno == EINTR) continue;
-        ERROR_HELPER(ret, "Failed to read username from client");
+      if (ret == -1 && errno == EINTR) continue;
+          ERROR_HELPER(ret, "Failed to read username from client");
 
-		if (user_att[bytes_read] == '\n') {
-			user_att[bytes_read]='\0';
-			bytes_read++;
-			break;
-		}
+      if (user_att[bytes_read] == '\n') {
+    	   user_att[bytes_read]='\0';
+    	   bytes_read++;
+    	   break;
+    }
 
-		bytes_read++;
-	}
+      bytes_read++;
+    }*/
+    ret = recv_TCP(socket, user_att, 1, 0);
+    PTHREAD_ERROR_HELPER(ret, "Failed to read username from client");
 
     ret = sem_wait(&sem_utenti);
     ERROR_HELPER(ret, "Error in sem_utenti wait");
@@ -99,37 +101,42 @@ void* thread_server_TCP(void* thread_server_TCP_args){
 		ERROR_HELPER(ret, "Error in sem_utenti post");
 
 		// informo il client che è un nuovo user o che gli slot sono terminati
-		while ((ret = send(arg->socket_desc_TCP_client, login_reply, sizeof(int), 0)) < 0) {
+		/*while ((ret = send(socket, &login_reply, sizeof(int), 0)) < 0) {
 			if (errno == EINTR) continue;
 			ERROR_HELPER(ret, "Failed to send login_reply to client");
-		}
+		}*/
+        ret = send_TCP(socket, &login_reply, sizeof(int), 0);
+        PTHREAD_ERROR_HELPER(ret, "Failed to send login_reply to client");
 
 		if (login_reply == -1){
-			 ret=close(socket);
-			 pthread_exit(-1);		// Slot user terminati devo terminare il thread corrente
-			 
-		 }
+            ret=close(socket);
+            pthread_exit(-1);		// Slot user terminati devo terminare il thread corrente
+        }
 
-		//ricezione password
-		bytes_read = 0;
-		while (1) {
-			ret = recv(arg->socket_desc_TCP_client, pass_att+bytes_read, 1, 0);
+        //ricezione password
+        /*bytes_read = 0;
+        while (1) {
+        	ret = recv(socket, pass_att+bytes_read, 1, 0);
 
-			if (ret == -1 && errno == EINTR) continue;
-		    ERROR_HELPER(ret, "Failed to read password from client");
+        	if (ret == -1 && errno == EINTR) continue;
+            ERROR_HELPER(ret, "Failed to read password from client");
 
-			if (user_att[bytes_read] == '\n') {
-				user_att[bytes_read]='\0';
-				bytes_read++;
-				break;
-			}
+        	if (user_att[bytes_read] == '\n') {
+        		user_att[bytes_read]='\0';
+        		bytes_read++;
+        		break;
+        	}
 
-			bytes_read++;
-		}
+        	bytes_read++;
+        }*/
+        ret = recv_TCP(socket, pass_att, 1, 0);
+        PTHREAD_ERROR_HELPER(ret, "Failed to read password from client");
+
+
 
 		// registrazione password ed id
 		ret = sem_wait(&sem_utenti);
-        ERROR_HELPER(ret, "Error in sem_utenti wait: failed to register username & password");
+        PTHREAD_ERROR_HELPER(ret, "Error in sem_utenti wait: failed to register username & password");
 
 		strcpy(utenti[idx].password,pass_att);
 
@@ -142,23 +149,25 @@ void* thread_server_TCP(void* thread_server_TCP_args){
 
 	// Già registrato
 	else if (idx > -1) {
-		strcpy(pass_giusta,utenti[idx].password);
+        strcpy(pass_giusta,utenti[idx].password);
 
 		ret = sem_post(&sem_utenti);
         ERROR_HELPER(ret, "Error in sem_utenti post");
 
 		// informo il client che è già registrato
 		login_reply = 1;
-		while ((ret = send(arg->socket_desc_TCP_client, &login_reply, sizeof(int), 0)) < 0) {
+		/*while ((ret = send(socket, &login_reply, sizeof(int), 0)) < 0) {
 			if (errno == EINTR) continue;
 			ERROR_HELPER(-1, "Failed to send login_reply to client");
-		}
+		}*/
+        ret = send_TCP(socket, &login_reply, sizeof(int), 0);
+        PTHREAD_ERROR_HELPER(ret, "Failed to send login_reply to client");
 
 		//ricezione password
 		do {
-			bytes_read = 0;
+			/*bytes_read = 0;
 			while (1) {
-				ret = recv(arg->socket_desc_TCP_client, pass_att+bytes_read, 1, 0);
+				ret = recv(socket, pass_att+bytes_read, 1, 0);
 
 				if (ret == -1 && errno == EINTR) continue;
 			    ERROR_HELPER(ret, "Failed to read password from client");
@@ -170,24 +179,29 @@ void* thread_server_TCP(void* thread_server_TCP_args){
 				}
 
 				bytes_read++;
-			}
+			}*/
+            ret = recv_TCP(socket, pass_att, 1, 0);
+            PTHREAD_ERROR_HELPER(ret, "Failed to read password from client");
 
 			// password giusta
 			if (!strcmp(pass_att,pass_giusta)) {
 				login_reply = 1;
-				while ((ret = send(arg->socket_desc_TCP_client, &login_reply, sizeof(int), 0)) < 0) {
+				/*while ((ret = send(socket, &login_reply, sizeof(int), 0)) < 0) {
 					if (errno == EINTR) continue;
 					ERROR_HELPER(-1, "Failed to send login_reply to client");
-				}
-				break;
+                    break;
+				}*/
+                ret = send(socket, &login_reply, sizeof(int), 0);
 			}
 
 			else {
 				login_reply = -1;
-				while ((ret = send(arg->socket_desc_TCP_client, &login_reply, sizeof(int), 0)) < 0) {
+				/*while ((ret = send(socket, &login_reply, sizeof(int), 0)) < 0) {
 					if (errno == EINTR) continue;
 					ERROR_HELPER(-1, "Failed to send login_reply to client");
-				}
+				}*/
+                ret = send_TCP(socket, &login_reply, sizeof(int), 0);
+                PTHREAD_ERROR_HELPER(ret, "Failed to send login_reply to client");
 			}
 		} while (strcmp(pass_att,pass_giusta));
 
@@ -201,7 +215,7 @@ void* thread_server_TCP(void* thread_server_TCP_args){
     **/
 
     int j;
-    char[1000000] client_connesso;
+    char client_connesso[DIM_BUFF];
     size_t msg_len;
     ImagePacket* client = (ImagePacket*) malloc(sizeof(ImagePacket));
     PacketHeader img_head;
@@ -216,7 +230,7 @@ void* thread_server_TCP(void* thread_server_TCP_args){
 
             msg_len = Packet_serialize(client_connesso, &(client->header));
 
-            while ((ret = send(arg->socket_desc_TCP_client, client_connesso, msg_len, 0))<0){
+            /*while ((ret = send(socket, client_connesso, msg_len, 0))<0){
                 if (errno == EINTR) continue;
                 else if (errno == ENOTCONN) {
                     printf("Client closed connection\n");
@@ -225,7 +239,9 @@ void* thread_server_TCP(void* thread_server_TCP_args){
                     client_disconnected[idx] = temp;
                 }
                 ERROR_HELPER(-1, "Could not send data over socket");
-            }
+            }*/
+            ret = send_TCP(socket, client_connesso, msg_len, 0);
+            PTHREAD_ERROR_HELPER(ret, "Could not send data over socket");
         }
     }
 
@@ -234,7 +250,7 @@ void* thread_server_TCP(void* thread_server_TCP_args){
     client_connesso = "Finish";
     msg_len = strlen(client_connesso);
 
-    while((ret = send(arg->socket_desc_TCP_client, client_connesso, msg_len, 0))<0){
+    /*while((ret = send(socket, client_connesso, msg_len, 0))<0){
         if (errno == EINTR) continue;
         else if (errno == ENOTCONN) {
             printf("Client closed connection\n");
@@ -243,7 +259,9 @@ void* thread_server_TCP(void* thread_server_TCP_args){
             client_disconnected[idx] = temp;
         }
         ERROR_HELPER(-1, "Could not send data over socket");
-    }
+    }*/
+    ret = send_TCP(socket, client_connesso, msg_len, 0);
+    PTHREAD_ERROR_HELPER(ret, "Could not send data over socket");
 
 
 
@@ -279,41 +297,41 @@ void* thread_server_UDP(void* thread_server_UDP_args){
 
 
 int main(int argc, char **argv) {
-  if (argc<3) {
-    printf("usage: %s <elevation_image> <texture_image>\n", argv[1]);
-    exit(-1);
-  }
-  char* elevation_filename=argv[1];
-  char* texture_filename=argv[2];
-  char* vehicle_texture_filename="./images/arrow-right.ppm";
-  printf("loading elevation image from %s ... ", elevation_filename);
+    if (argc<3) {
+        printf("usage: %s <elevation_image> <texture_image>\n", argv[1]);
+        exit(-1);
+    }
+    char* elevation_filename=argv[1];
+    char* texture_filename=argv[2];
+    char* vehicle_texture_filename="./images/arrow-right.ppm";
+    printf("loading elevation image from %s ... ", elevation_filename);
 
-  // load the images
-  Image* surface_elevation = Image_load(elevation_filename);
-  if (surface_elevation) {
-    printf("Done! \n");
-  } else {
-    printf("Fail! \n");
-  }
+    // load the images
+    Image* surface_elevation = Image_load(elevation_filename);
+    if (surface_elevation) {
+        printf("Done! \n");
+    } else {
+        printf("Fail! \n");
+    }
 
 
-  printf("loading texture image from %s ... ", texture_filename);
-  Image* surface_texture = Image_load(texture_filename);
-  if (surface_texture) {
-    printf("Done! \n");
-  } else {
-    printf("Fail! \n");
-  }
+    printf("loading texture image from %s ... ", texture_filename);
+    Image* surface_texture = Image_load(texture_filename);
+    if (surface_texture) {
+        printf("Done! \n");
+    } else {
+        printf("Fail! \n");
+    }
 
-  printf("loading vehicle texture (default) from %s ... ", vehicle_texture_filename);
-  Image* vehicle_texture = Image_load(vehicle_texture_filename);
-  if (vehicle_texture) {
-    printf("Done! \n");
-  } else {
-    printf("Fail! \n");
-  }
+    printf("loading vehicle texture (default) from %s ... ", vehicle_texture_filename);
+    Image* vehicle_texture = Image_load(vehicle_texture_filename);
+    if (vehicle_texture) {
+        printf("Done! \n");
+    } else {
+        printf("Fail! \n");
+    }
 
-   // Inizializzo i due array di client connessi e disconnessi
+    // Inizializzo i due array di client connessi e disconnessi
 
     int i;
     for (i = 0; i < MAX_USER_NUM; i++){
@@ -325,7 +343,6 @@ int main(int argc, char **argv) {
 
 	// inizializzo i semafori di mutex per online client e offline client list e per tabella utenti
 
-
 	ret = sem_init(&sem_utenti, 1, 0);
 	ERROR_HELPER(ret, "Failed to initialization of sem_utenti");
 
@@ -336,106 +353,106 @@ int main(int argc, char **argv) {
 		utenti[i].id = -1;
 	}
 
-  //definisco descrittore server socket e struttura per bind
+    //definisco descrittore server socket e struttura per bind
 
-  int server_socket_UDP;
-  struct server_addr_UDP {0};
+    int server_socket_UDP;
+    struct server_addr_UDP {0};
 
-  //imposto i valori della struttura
+    //imposto i valori della struttura
 
-  server_addr_UDP.sin_addr.in_addr=INADDR_ANY;
-  server_addr_UDP.sin_family=AF_INET;
-  server_addr_UDP.sin_port=htons(SERVER_PORT_UDP);
+    server_addr_UDP.sin_addr.in_addr=INADDR_ANY;
+    server_addr_UDP.sin_family=AF_INET;
+    server_addr_UDP.sin_port=htons(SERVER_PORT_UDP);
 
-  //creo la socket
+    //creo la socket
 
-  server_socket_UDP=socket(AF_INET,SOCK_DGRAM,0);
-  ERROR_HELPER(server_socket_UDP,"error creating socket UDP \n");
+    server_socket_UDP=socket(AF_INET,SOCK_DGRAM,0);
+    ERROR_HELPER(server_socket_UDP,"error creating socket UDP \n");
 
-  // faccio la bind
+    // faccio la bind
 
-  ret=bind(server_socket_UDP,(struct sockaddr*) &server_addr_UDP,sizeof(struct sockaddr_in);
-  ERROR_HELPER(ret,"error binding socket  UDP \n");
+    ret=bind(server_socket_UDP,(struct sockaddr*) &server_addr_UDP,sizeof(struct sockaddr_in);
+    ERROR_HELPER(ret,"error binding socket  UDP \n");
 
-  //creo il thread che si occuperà di ricevere via UDP le forze e che invierà le nuove poiszioni dopo aver integrato il mondo
+    //creo il thread che si occuperà di ricevere via UDP le forze e che invierà le nuove poiszioni dopo aver integrato il mondo
 
-  pthread_t thread;
+    pthread_t thread;
 
-  thread_server_UDP_args* args_UDP=(thread_server_UDP_args*)malloc(sizeof(thread_server_UDP_args));
-  	 args_UDP->socket_desc_UDP_server=server_socket_UDP;
-	 args_UDP->connected=online_client;
-	 args_UDP->disconnected=offline_client;
+    thread_server_UDP_args* args_UDP=(thread_server_UDP_args*)malloc(sizeof(thread_server_UDP_args));
+        args_UDP->socket_desc_UDP_server=server_socket_UDP;
+        args_UDP->connected=online_client;
+        args_UDP->disconnected=offline_client;
 
-  //creo il thread
+    //creo il thread
 
-  ret = pthread_create(&thread, NULL,thread_server_UDP,args_UDP);
-  ERROR_HELPER(ret, "Could not create thread");
+    ret = pthread_create(&thread, NULL,thread_server_UDP,args_UDP);
+    ERROR_HELPER(ret, "Could not create thread");
 
-  // impongo di non aspettare terminazione in modo da non bloccare tutto il programma
+    // impongo di non aspettare terminazione in modo da non bloccare tutto il programma
 
-  ret = pthread_detach(thread);
-  ERROR_HELPER(ret, "Could not detach thread");
-
-
-  //definisco descrittore server socket TCP
-
-  int server_socket_TCP;
-  struct server_addr {0};
-
-  //imposto i valori delle struttura per accettare connessioni
-
-  server_addr.sin_addr.in_addr=INADDR_ANY;
-  server_addr.sin_family=AF_INET;
-  server_addr.sin_port=htons(SERVER_PORT_TCP);
-
-  //creo la socket
-
-  server_socket_TCP=socket(AF_INET,SOCK_STREAM,0);
-  ERROR_HELPER(server_socket_TCP,"error creating socket \n");
-
-  // faccio la bind
-
-  ret=bind(server_socket_TCP,(struct sockaddr*) &server_addr,sizeof(struct sockaddr_in);
-  ERROR_HELPER(ret,"error binding socket \n");
-
-  // rendo la socket in grado di accettare connessioni
-
-  ret=listen(server_socket_TCP,3);
-  ERROR_HELPER(ret,"error setting socket to listen connections \n");
-
-  while(1){
-
-	 // definisco descrittore della socket con cui parlerò poi con ogni client
-
-	 struct sockaddr_in*  client_addr {0};
-	 int client_socket;
-
-	 // mi metto in attesa di connessioni
-
-	 client_socket=accept(server_socket_TCP,(struct sockaddr*) &client_addr,sizeof(struct sockadrr_in);
-	 ERROR_HELPER(client_socket,"error accepting connections \n");
-
-	 //lancio il thread che si occuperà di parlare poi con il singolo client che si è connesso
-
-	 pthread_t thread;
-
-	 thread_server_TCP_args* args_TCP=(thread_server_TCP_args*)malloc(sizeof(thread_server_TCP_args));
-	 args_TCP->socket_desc_TCP_client = client_socket;
-	 args_TCP->connected=online_client;
-	 args_TCP->disconnected=offline_client;
-
-	 ret = pthread_create(&thread, NULL,thread_server_TCP,args_TCP);
-	 ERROR_HELPER(ret, "Could not create thread");
-
-	 ret = pthread_detach(thread);
-	 ERROR_HELPER(ret, "Could not detach thread");
+    ret = pthread_detach(thread);
+    ERROR_HELPER(ret, "Could not detach thread");
 
 
+    //definisco descrittore server socket TCP
+
+    int server_socket_TCP;
+    struct server_addr {0};
+
+    //imposto i valori delle struttura per accettare connessioni
+
+    server_addr.sin_addr.in_addr=INADDR_ANY;
+    server_addr.sin_family=AF_INET;
+    server_addr.sin_port=htons(SERVER_PORT_TCP);
+
+    //creo la socket
+
+    server_socket_TCP=socket(AF_INET,SOCK_STREAM,0);
+    ERROR_HELPER(server_socket_TCP,"error creating socket \n");
+
+    // faccio la bind
+
+    ret=bind(server_socket_TCP,(struct sockaddr*) &server_addr,sizeof(struct sockaddr_in);
+    ERROR_HELPER(ret,"error binding socket \n");
+
+    // rendo la socket in grado di accettare connessioni
+
+    ret=listen(server_socket_TCP,3);
+    ERROR_HELPER(ret,"error setting socket to listen connections \n");
+
+    while(1){
+
+        // definisco descrittore della socket con cui parlerò poi con ogni client
+
+        struct sockaddr_in*  client_addr {0};
+        int client_socket;
+
+        // mi metto in attesa di connessioni
+
+        client_socket=accept(server_socket_TCP,(struct sockaddr*) &client_addr,sizeof(struct sockadrr_in));
+        ERROR_HELPER(client_socket,"error accepting connections \n");
+
+        //lancio il thread che si occuperà di parlare poi con il singolo client che si è connesso
+
+        pthread_t thread;
+
+        thread_server_TCP_args* args_TCP=(thread_server_TCP_args*)malloc(sizeof(thread_server_TCP_args));
+        args_TCP->socket_desc_TCP_client = client_socket;
+        args_TCP->connected=online_client;
+        args_TCP->disconnected=offline_client;
+
+        ret = pthread_create(&thread, NULL,thread_server_TCP,args_TCP);
+        ERROR_HELPER(ret, "Could not create thread");
+
+        ret = pthread_detach(thread);
+        ERROR_HELPER(ret, "Could not detach thread");
 
 
 
 
-  }
+
+
+    }
 
 
 

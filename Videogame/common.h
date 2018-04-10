@@ -10,6 +10,7 @@
     } while(0)
 
 #define ERROR_HELPER(ret, msg)      GENERIC_ERROR_HELPER((ret < 0), errno, msg)
+#define PTHREAD_ERROR_HELPER(ret, msg)  GENERIC_ERROR_HELPER((ret != 0), ret, msg)
 
 /* Configuration parameters */
 #define SERVER_PORT_TCP    2015
@@ -17,5 +18,6 @@
 #define FINISH_COMMAND     "Finish"
 //#define OK_COMMAND         "ok"
 #define MAX_USER_NUM	   20
+#define DIM_BUFF			1000000
 
 #endif
