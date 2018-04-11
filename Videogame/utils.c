@@ -2,6 +2,7 @@
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <errno.h>
+#include <semaphore.h>
 
 #include "utils.h"
 
@@ -162,4 +163,14 @@ int send_UDP(int socket, const void *buf, size_t len, int flags, const struct so
 	return ret;
 }
 
+int sem_clean(sem_t sem_utenti, sem_t sem_thread_UDP){
+    int ret;
+
+    ret = sem_destroy(sem_utenti);
+    if (ret == -1) printf("Could not destroy sem_utenti");
+
+    ret = sem_destroy(sem_thread_UDP);
+    if (ret == -1) printf("Could not destroy sem_thread_UDP");
+
+}
 // DA CONTROLLARNE LA CORRETTEZZA

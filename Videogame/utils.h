@@ -1,5 +1,7 @@
 typedef struct thread_server_TCP_args{
     int socket_desc_TCP_client;
+    Image* elevation_map;
+    Image* map;
     client_connected* connected;
     client_disconnected* disconnected;
 }thread_server_TCP_args;
@@ -51,3 +53,6 @@ int recv_UDP(int socket, void *buf, size_t len, int flags, struct sockaddr *src_
 // Funzione di invio UDP
 
 int send_UDP(int socket, const void *buf, size_t len, int flags, const struct sockaddr *dest_addr, socklen_t addrlen);
+
+// Funzione per eliminazione semafori
+int sem_clean(sem_t sem_utenti, sem_t sem_thread_UDP);

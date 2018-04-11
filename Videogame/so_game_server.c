@@ -37,11 +37,13 @@ offline_client, e poi si mette a NULL la sua cella in online_client.
 
 void* thread_server_TCP(void* thread_server_TCP_args){
 
-    int ret/*, bytes_read = 0*/;
+    int ret;
 
     //implementare protoccollo login e aggiungere il nuovo client al mondo ed alla lista dei client connessi
     thread_server_TCP_args *arg = (thread_server_TCP_args *)args;
-    int socket=args->socket_desc_TCP_client;
+    int socket=arg->socket_desc_TCP_client;
+    Image* elevation_map = arg->elevation_map;      //elevation map
+    Image* map = arg->map;                          //map
 
     // Strutture dati per il Login
     char user_att[64];
@@ -49,25 +51,12 @@ void* thread_server_TCP(void* thread_server_TCP_args){
     char pass_giusta[64];
     int login_reply;
     int id_utente = -1;
-    int login_status        //questa variabile serve per far capire al server se il client che si è connesso è un nuovo utente oppure si era già registrato
+    int login_status;        //questa variabile serve per far capire al server se il client che si è connesso è un nuovo utente oppure si era già registrato
 
     //l'utilizzo della sola variabile login_reply non permette di identificare i due tipi di client, perchè viene modificata per altri scopi
 
     // Ricezione dell'user
-    /*while (1) {
-      ret = recv(socket, user_att+bytes_read, 1, 0);
 
-      if (ret == -1 && errno == EINTR) continue;
-          ERROR_HELPER(ret, "Failed to read username from client");
-
-      if (user_att[bytes_read] == '\n') {
-    	   user_att[bytes_read]='\0';
-    	   bytes_read++;
-    	   break;
-    }
-
-      bytes_read++;
-    }*/
     ret = recv_TCP(socket, user_att, 1, 0);
     if (ret == -2){
         printf("Could not receive client username\n");
@@ -109,10 +98,7 @@ void* thread_server_TCP(void* thread_server_TCP_args){
 		ERROR_HELPER(ret, "Error in sem_utenti post");
 
 		// informo il client che è un nuovo user o che gli slot sono terminati
-		/*while ((ret = send(socket, &login_reply, sizeof(int), 0)) < 0) {
-			if (errno == EINTR) continue;
-			ERROR_HELPER(ret, "Failed to send login_reply to client");
-		}*/
+
         ret = send_TCP(socket, &login_reply, sizeof(int), 0);
         if (ret == -2) {
             printf("Could not send login_reply to client\n");
@@ -126,21 +112,7 @@ void* thread_server_TCP(void* thread_server_TCP_args){
         }
 
         //ricezione password
-        /*bytes_read = 0;
-        while (1) {
-        	ret = recv(socket, pass_att+bytes_read, 1, 0);
 
-        	if (ret == -1 && errno == EINTR) continue;
-            ERROR_HELPER(ret, "Failed to read password from client");
-
-        	if (user_att[bytes_read] == '\n') {
-        		user_att[bytes_read]='\0';
-        		bytes_read++;
-        		break;
-        	}
-
-        	bytes_read++;
-        }*/
         ret = recv_TCP(socket, pass_att, 1, 0);
         if (ret == -2){
              printf("Could not receive password from client\n");
@@ -173,10 +145,7 @@ void* thread_server_TCP(void* thread_server_TCP_args){
 		// informo il client che è già registrato
 		login_reply = 1;
         login_status = login_reply;
-		/*while ((ret = send(socket, &login_reply, sizeof(int), 0)) < 0) {
-			if (errno == EINTR) continue;
-			ERROR_HELPER(-1, "Failed to send login_reply to client");
-		}*/
+
         ret = send_TCP(socket, &login_reply, sizeof(int), 0);
         if (ret == -2) {
             printf("Could not send login_reply to client\n");
@@ -186,21 +155,7 @@ void* thread_server_TCP(void* thread_server_TCP_args){
 
 		//ricezione password
 		do {
-			/*bytes_read = 0;
-			while (1) {
-				ret = recv(socket, pass_att+bytes_read, 1, 0);
 
-				if (ret == -1 && errno == EINTR) continue;
-			    ERROR_HELPER(ret, "Failed to read password from client");
-
-				if (user_att[bytes_read] == '\n') {
-					user_att[bytes_read]='\0';
-					bytes_read++;
-					break;
-				}
-
-				bytes_read++;
-			}*/
             ret = recv_TCP(socket, pass_att, 1, 0);
             if (ret == -2) {
                 printf("Could not receive password from client\n");
@@ -211,11 +166,7 @@ void* thread_server_TCP(void* thread_server_TCP_args){
 			// password giusta
 			if (!strcmp(pass_att,pass_giusta)) {
 				login_reply = 1;
-				/*while ((ret = send(socket, &login_reply, sizeof(int), 0)) < 0) {
-					if (errno == EINTR) continue;
-					ERROR_HELPER(-1, "Failed to send login_reply to client");
-                    break;
-				}*/
+
                 ret = send(socket, &login_reply, sizeof(int), 0);
                 if (ret == -2) {
                     printf("Could not send login_reply to client\n");
@@ -225,10 +176,7 @@ void* thread_server_TCP(void* thread_server_TCP_args){
 
 			else {
 				login_reply = -1;
-				/*while ((ret = send(socket, &login_reply, sizeof(int), 0)) < 0) {
-					if (errno == EINTR) continue;
-					ERROR_HELPER(-1, "Failed to send login_reply to client");
-				}*/
+
                 ret = send_TCP(socket, &login_reply, sizeof(int), 0);
                 if (ret == -2){
                      printf("Could not send login_reply to client\n");
@@ -246,6 +194,8 @@ void* thread_server_TCP(void* thread_server_TCP_args){
     Spediamo al client ogni cella dell'array di client connessi che non è messa a NULL, sottoforma di ImagePacket.
     **/
 
+    client_connected* temp;     //serve per salvare lo stato del client al momento della disconnessione
+
     int j;
     char client_connesso[DIM_BUFF];
     size_t msg_len;
@@ -262,20 +212,10 @@ void* thread_server_TCP(void* thread_server_TCP_args){
 
             msg_len = Packet_serialize(client_connesso, &(client->header));
 
-            /*while ((ret = send(socket, client_connesso, msg_len, 0))<0){
-                if (errno == EINTR) continue;
-                else if (errno == ENOTCONN) {
-                    printf("Client closed connection\n");
-                    client_connected* temp = client_connected[idx];
-                    client_connected[idx] = NULL;
-                    client_disconnected[idx] = temp;
-                }
-                ERROR_HELPER(-1, "Could not send data over socket");
-            }*/
             ret = send_TCP(socket, client_connesso, msg_len, 0);
             if (ret == -2){
                 printf("Could not send data over socket\n");
-                //pthread_exit(0);
+                pthread_exit(0);
             }
             else PTHREAD_ERROR_HELPER(ret, "Could not send data over socket");
         }
@@ -293,7 +233,7 @@ void* thread_server_TCP(void* thread_server_TCP_args){
         ret = recv_TCP(socket, idPacket, sizeof(idPacket), 0);
         if (ret == -2){
             printf("Could not receive id request from client\n");
-            //pthread_exit(0);
+            pthread_exit(0);
         }
         PTHREAD_ERROR_HELPER(ret, "Could not receive id request from client");
 
@@ -311,7 +251,7 @@ void* thread_server_TCP(void* thread_server_TCP_args){
             ret = send_TCP(socket, idPacket, idPacket_response_len, 0);
             if (ret == -2){
                 printf("Could not send id response to client\n");
-                //pthread_exit(0);
+                pthread_exit(0);
             }
             PTHREAD_ERROR_HELPER(ret, "Could not send id response to client\n");
 
@@ -319,7 +259,7 @@ void* thread_server_TCP(void* thread_server_TCP_args){
         }
         else{
             PTHREAD_ERROR_HELPER(-1, "Error in id packet request!");
-            //pthread_exit(0);
+            pthread_exit(0);
         }
 
         //nuovo utente: invia la sua texture
@@ -329,7 +269,7 @@ void* thread_server_TCP(void* thread_server_TCP_args){
         ret = recv_TCP(socket, texture_utente, sizeof(ImagePacket), 0);
         if (ret == -2){
             printf("Could not receive client texture\n");
-            //pthread_exit(0);
+            pthread_exit(0);
         }
         PTHREAD_ERROR_HELPER(ret, "Could not receive client texture");
 
@@ -342,13 +282,16 @@ void* thread_server_TCP(void* thread_server_TCP_args){
         client_connected[idx]->id = idx;
         client_connected[idx]->texture = client_texture->texture;
 
-        int texture_utente_len;
+        size_t texture_utente_len;
         texture_utente_len = Packet_serialize(texture_utente, &(client_texture->header));
 
         ret = send_TCP(socket, texture_utente, texture_utente_len, 0);
         if (ret == -2){
             printf("Could not send client texture\n");
-            //pthread_exit(0);
+            temp = client_connected[idx];
+            client_connected[idx] = NULL;
+            client_disconnected[idx] = temp;
+            pthread_exit(0);
         }
         else PTHREAD_ERROR_HELPER(ret, "Could not send client texture\n");
 
@@ -356,35 +299,165 @@ void* thread_server_TCP(void* thread_server_TCP_args){
     }
 
     else if (login_status == 1){
-        //todo
+
+        /**client invia un IdPacket, con id settato a -1, noi rispondiamo con un ImagePacket, contenente la sua texture (salvata precedentemente) e il suo id
+         * in pratica gli inviamo tutto insieme
+        **/
+
+        char idPacket_buf[DIM_BUFF];
+        size_t idPacket_buf_len;
+
+        ret = recv_TCP(socket, idPacket_buf, sizeof(IdPacket), 0);
+        if (ret == -2) {
+            printf("Could not receive IdPacket from client\n");
+            pthread_exit(0);
+        }
+        else PTHREAD_ERROR_HELPER(ret, "Could not receive IdPacket from client");
+
+        msg_len = ret;
+        idPacket_buf[msg_len] = '\0';
+
+        IdPacket* received = Packet_deserialize(idPacket_buf, msg_len);
+        if (received->header->type != GetTexture) PTHREAD_ERROR_HELPER(-1, "Connection error (texture request)");
+
+        ImagePacket* client_texture = (ImagePacket*) malloc(sizeof(ImagePacket));
+        PacketHeader client_header;
+        client_texture->header = &client_header;
+        client_texture->id = idx;
+        client_texture->texture = client_connected[idx];
+        client_texture->header->type = PostTexture;
+        client_texture->header->size = sizeof(ImagePacket);
+
+        idPacket_buf_len = Packet_serialize(idPacket_buf, &(client_texture->header));
+
+        ret = send_TCP(socket, idPacket_buf, idPacket_buf_len, 0);
+        if (ret == -2) {
+            printf("Could not send client texture and id\n");
+            //pthread_exit(0);
+        }
+        else PTHREAD_ERROR_HELPER(ret, "Could not send client texture and id");
     }
 
     //utente invia la richiesta di elevation map
 
-    char elevation_map[DIM_BUFF];
+    char elevation_map_buffer[DIM_BUFF];
+    size_t elevation_map_len;
 
-    ret = recv_TCP(socket, elevation_map, sizeof(ImagePacket), 0);
+    ret = recv_TCP(socket, elevation_map_buffer, sizeof(ImagePacket), 0);
     if (ret == -2) {
         printf("Could not receive elevation map request\n");
+        temp = client_connected[idx];
+        client_connected[idx] = NULL;
+        client_disconnected[idx] = temp;
         //pthread_exit(0);
     }
     else PTHREAD_ERROR_HELPER(ret, "Could not receive elevation map request");
 
     msg_len = ret;
-    elevation_map[msg_len] = '\0';
+    elevation_map_buffer[msg_len] = '\0';
 
-    ImagePacket* elevation= Packet_deserialize(elevation_map,msg_len);
+    IdPacket* elevation= Packet_deserialize(elevation_map_buffer,msg_len);
     if(elevation->header->type!=GetElevation) ERROR_HELPER(-1,"error in communication \n");
 
+    int id = elevation->id;
 
-    //terminare con invio della elevation map e della mappa
+    ImagePacket* ele_map = (ImagePacket*) malloc(sizeof(ImagePacket));
+    PacketHeader elevation_header;
+    ele_map->header = &elevation_header;
+    ele_map->texture = elevation_map;
+    ele_map->id = id;
+    ele_map->header->type = PostElevation;
+    ele_map->header->size = sizeof(ImagePacket);
 
+    elevation_map_len = Packet_serialize(elevation_map_buffer, &(ele_map->header));
 
+    ret = send_TCP(socket, elevation_map, elevation_map_len, 0);
+    if (ret == -2) {
+        printf("Could not send elevation map\n");
+        temp = client_connected[idx];
+        client_connected[idx] = NULL;
+        client_disconnected[idx] = temp;
+        //pthread_exit(0);
+    }
+    else PTHREAD_ERROR_HELPER(ret, "Could not send elevation map to client");
 
+    //ricezione richiesta mappa e invio mappa
 
+    char map_buffer[DIM_BUFF];
+    size_t map_len;
 
+    ret = recv_TCP(socket, map_buffer, sizeof(IdPacket), 0);
+    if (ret == -2) {
+        printf("Could not receive map request\n");
+        temp = client_connected[idx];
+        client_connected[idx] = NULL;
+        client_disconnected[idx] = temp;
+        //pthread_exit(0);
+    }
+    else PTHREAD_ERROR_HELPER(ret, "Could not receive map request");
 
+    msg_len = ret;
+    map[msg_len] = '\0';
 
+    IdPacket* map = Packet_deserialize(map_buffer, msg_len);
+    if(map->header->type!=GetMap)   ERROR_HELPER(-1, "Connection error (map request)");
+
+    id = map->id;
+
+    //invio mappa
+    ImagePacket* map_packet = (ImagePacket*) malloc(sizeof(ImagePacket));
+    PacketHeader map_header;
+    map_packet->header = &map_header;
+    map_packet->id = id;
+    map_packet->texture = map;
+    map_packet->header->type = PostTexture;
+    map_packet->header->size = sizeof(ImagePacket);
+
+    map_len = Packet_serialize(map_buffer, &(map_packet->header));
+
+    ret = send_TCP(socket, map_buffer, map_len, 0);
+    if (ret == -2){
+        printf("Could not send map to client\n");
+        temp = client_connected[idx];
+        client_connected[idx] = NULL;
+        client_disconnected[idx] = temp;
+        //pthread_exit(0);
+    }
+    else PTHREAD_ERROR_HELPER(ret, "Could not send map to client\n");
+
+    /** Ultimata la connessione e l'inizializzazione del client, c'è bisogno di inviargli lo stato di tutti gli altri client già connessi [TODO] **/
+
+    ImagePacket* client_alive = (ImagePacket*) malloc(sizeof(ImagePacket));
+    PacketHeader client_alive_header;
+    client_alive->header = &(client_alive_header);
+    client_alive->header->type=PostTexture;
+    client_alive->header->size=sizeof(ImagePacket);
+
+    char client_alive_buf[DIM_BUFF];
+    size_t alive_len;
+
+    //inviamo tutto il client_connected: le celle messe a NULL il client le eliminerà
+
+    for (i = 0; i < MAX_USER_NUM; i++){
+        if (i != idx){
+            client_alive->id = client_connected[i]->id;
+            client_alive->texture = client_connected[i]->texture;
+
+            alive_len = Packet_serialize(client_alive_buf, &(client_alive->header));
+
+            ret = send_TCP(socket, client_alive_buf, alive_len, 0);
+            if (ret == -2){
+                printf("Could not send user data to client\n");
+                temp = client_connected[idx];
+                client_connected[idx] = NULL;
+                client_disconnected[idx] = temp;
+                pthread_exit(0);
+            }
+            else PTHREAD_ERROR_HELPER(ret, "Could not send user data to client\n");
+        }
+    }
+
+    /** FINE LAVORO TCP **/
 
 
 
@@ -421,7 +494,7 @@ int main(int argc, char **argv) {
     printf("loading elevation image from %s ... ", elevation_filename);
 
     // load the images
-    Image* surface_elevation = Image_load(elevation_filename);
+    Image* surface_elevation = Image_load(elevation_filename);  //elevation map da passare al thread TCP per consegnarla al singolo client
     if (surface_elevation) {
         printf("Done! \n");
     } else {
@@ -430,7 +503,7 @@ int main(int argc, char **argv) {
 
 
     printf("loading texture image from %s ... ", texture_filename);
-    Image* surface_texture = Image_load(texture_filename);
+    Image* surface_texture = Image_load(texture_filename);      //map da passare al thread TCP per consegnarla al singolo client
     if (surface_texture) {
         printf("Done! \n");
     } else {
@@ -565,6 +638,8 @@ int main(int argc, char **argv) {
         args_TCP->socket_desc_TCP_client = client_socket;
         args_TCP->connected=online_client;
         args_TCP->disconnected=offline_client;
+        args_TCP->elevation_map = surface_elevation;
+        args_TCP->map = surface_texture;
 
         ret = pthread_create(&thread, NULL,thread_server_TCP,args_TCP);
         ERROR_HELPER(ret, "Could not create thread");
