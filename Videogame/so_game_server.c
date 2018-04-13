@@ -18,8 +18,7 @@ user_table utenti[MAX_USER_NUM];
 // Creare lista di tutti i client connessi che verranno man mano aggiunti e rimossi
 // deve contenere ID texture. Stessa cosa vale con una lista di client disconnessi
 // in modo da ripristinare lo stato in caso di un nuovo login
-client_connected  online_client[MAX_USER_NUM];    //vettore di puntatori a strutture dati client_connected
-client_disconnected  offline_client[MAX_USER_NUM];   //vettore di puntatori a strutture dati client_disconnected
+clients*  client[MAX_USER_NUM];    //vettore di puntatori a strutture dati clients
 
 
 sem_t sem_utenti;
@@ -464,7 +463,24 @@ void* thread_server_TCP(void* thread_server_TCP_args){
 
 }
 
-void* thread_server_UDP(void* thread_server_UDP_args){
+void* thread_server_UDP_sender(void* thread_server_UDP_args){
+
+
+
+
+
+
+	//ad intervalli regolari integrare il mondo  svuorare lista movimenti ed inviare le nuove poszioni di tutti i clientn a tutti i client
+
+
+
+
+
+
+
+}
+
+void* thread_server_UDP_receiver(void* thread_server_UDP_args){
 
 	//ricevere tutte le intenzioni di movimento e salvarle nella lista dei movimenti da effettuare
 
@@ -472,7 +488,7 @@ void* thread_server_UDP(void* thread_server_UDP_args){
 
 
 
-	//ad intervalli regolari integrare il mondo  svuorare lista movimenti ed inviare le nuove poszioni di tutti i clientn a tutti i client
+
 
 
 
@@ -522,13 +538,12 @@ int main(int argc, char **argv) {
 
     int i;
     for (i = 0; i < MAX_USER_NUM; i++){
-        online_client[i] = NULL;
-        offline_client[i] = NULL;
+        client[i] = NULL;
     }
 
     int ret;
 
-	// inizializzo i semafori di mutex per online client e offline client list e per tabella utenti
+	// inizializzo i semafori di mutex per client list e per tabella utenti
 
 	ret = sem_init(&sem_utenti, 1, 0);
 	ERROR_HELPER(ret, "Failed to initialization of sem_utenti");
@@ -542,23 +557,44 @@ int main(int argc, char **argv) {
 
     //definisco descrittore server socket e struttura per bind
 
-    int server_socket_UDP;
-    struct server_addr_UDP {0};
+    int server_socket_UDP_M;
+    struct server_addr_UDP_M {0};
 
     //imposto i valori della struttura
 
-    server_addr_UDP.sin_addr.in_addr=INADDR_ANY;
-    server_addr_UDP.sin_family=AF_INET;
-    server_addr_UDP.sin_port=htons(SERVER_PORT_UDP);
+    server_addr_UDP_M.sin_addr.in_addr=INADDR_ANY;
+    server_addr_UDP_M.sin_family=AF_INET;
+    server_addr_UDP_M.sin_port=htons(SERVER_PORT_UDP_M);
 
     //creo la socket
 
-    server_socket_UDP=socket(AF_INET,SOCK_DGRAM,0);
-    ERROR_HELPER(server_socket_UDP,"error creating socket UDP \n");
+    server_socket_UDP_M=socket(AF_INET,SOCK_DGRAM,0);
+    ERROR_HELPER(server_socket_UDP_M,"error creating socket UDP \n");
 
     // faccio la bind
 
-    ret=bind(server_socket_UDP,(struct sockaddr*) &server_addr_UDP,sizeof(struct sockaddr_in);
+    ret=bind(server_socket_UDP_M,(struct sockaddr*) &server_addr_UDP_M,sizeof(struct sockaddr_in);
+    ERROR_HELPER(ret,"error binding socket  UDP \n");
+    
+    //definisco descrittore server socket e struttura per bind
+
+    int server_socket_UDP_W;
+    struct server_addr_UDP_W {0};
+
+    //imposto i valori della struttura
+
+    server_addr_UDP_W.sin_addr.in_addr=INADDR_ANY;
+    server_addr_UDP_W.sin_family=AF_INET;
+    server_addr_UDP_W.sin_port=htons(SERVER_PORT_UDP);
+
+    //creo la socket
+
+    server_socket_UDP_W=socket(AF_INET,SOCK_DGRAM,0);
+    ERROR_HELPER(server_socket_UDP_W,"error creating socket UDP \n");
+
+    // faccio la bind
+
+    ret=bind(server_socket_UDP_W,(struct sockaddr*) &server_addr_UDP_W,sizeof(struct sockaddr_in);
     ERROR_HELPER(ret,"error binding socket  UDP \n");
 
     //creo i thread che si occuperanno di ricevere le forze dai vari client e di inviare un world update packet a tutti i client (UDP)
@@ -571,10 +607,10 @@ int main(int argc, char **argv) {
     pthread_t thread_UDP_sender;
 
     thread_server_UDP_args* args_UDP=(thread_server_UDP_args*)malloc(sizeof(thread_server_UDP_args));
-    args_UDP->socket_desc_UDP_server=server_socket_UDP;
-    args_UDP->connected=online_client;
-    args_UDP->disconnected=offline_client;
-
+    args_UDP->socket_desc_UDP_server_W=server_socket_UDP_W;
+    args_UDP->socket_desc_UDP_server_M=server_socket_UDP_M;
+    args_UDP->list=client;
+    
     //creo i thread
 
     ret = pthread_create(&thread_UDP_receiver, NULL,thread_server_UDP_receiver,args_UDP);
@@ -636,8 +672,7 @@ int main(int argc, char **argv) {
 
         thread_server_TCP_args* args_TCP=(thread_server_TCP_args*)malloc(sizeof(thread_server_TCP_args));
         args_TCP->socket_desc_TCP_client = client_socket;
-        args_TCP->connected=online_client;
-        args_TCP->disconnected=offline_client;
+        args_TCP->list=&client;
         args_TCP->elevation_map = surface_elevation;
         args_TCP->map = surface_texture;
 

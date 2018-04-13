@@ -96,7 +96,7 @@ void* thread_listener_tcp(void* client_args){
 
 }
 
-void* thread_listener_udp(void* client_args){
+void* thread_listener_udp_M(void* client_args){
 
     /**COMUNICAZIONE UDP**/
     /**
@@ -110,12 +110,11 @@ void* thread_listener_udp(void* client_args){
     **/
 
     thread_client_args arg = (thread_client_args) client_args;
-    int socket_UDP = arg->socket_desc_UDP;
-    int socket=arg->socket_desc_TCP;
+    int socket_UDP = arg->socket_desc_UDP_M;
     int id=arg->id;
     Image* map_texture=arg->map_texture;
     Vehicle vehicle=arg->v
-    struct sockaddr_in server_UDP = arg->server_addr_UDP;
+    struct sockaddr_in server_UDP = arg->server_addr_UDP_M;
 
 
     /**
@@ -141,20 +140,57 @@ void* thread_listener_udp(void* client_args){
         ret = send_UDP(socket_UDP, vehicle_update, vehicle_update_len, 0, (struct sockaddr*) server_UDP, sizeof(server_UDP));
         PTHREAD_ERROR_HELPER(ret, "Could not send vehicle updates to server");
 
+
+    }
+
+    /**uscire dal while, significa che il client si sta disconnettendo. Il server deve salvare il suo stato da qualche parte, per ripristinarlo più avanti
+       se il client si connetterà ancora**/
+
+    /**funzioni di send e receive per comunicazione UDP**/
+    //sendto(int sockfd, void* buff, size_t #bytes, int flags, const struct sockaddr* to, socklen_t addrlen)
+    //recvfrom(int sockfd, void* buff, size_t #bytes, int flags, const struct sockaddr* from, socklen_t addrlen)
+}
+
+void* thread_listener_udp_W(void* client_args){
+
+    /**COMUNICAZIONE UDP**/
+    /**
+
+    Client, via UDP invia dei pacchetti VehicleUpdate al server. Il contenuto del VehicleUpdate viene prelevato da desired_force,
+    è contenuto nella struttura del veicolo e si mette in attesa di pacchetti WorldUpdate che contengono al
+    loro interno una lista collegata. Ricevuti questi pacchetti, smonta la lista collegata all'interno e per ogni elemento della lista,
+    preso l'id, preleva dal mondo il veicolo con quell'id e ne aggiorna lo stato. I pacchetti di veicoli ancora non aggiunti al proprio mondo
+    vengono ignorati (per necessità).
+
+    **/
+
+    thread_client_args arg = (thread_client_args) client_args;
+    int socket_UDP = arg->socket_desc_UDP_W;
+    int id=arg->id;
+    Image* map_texture=arg->map_texture;
+    Vehicle vehicle=arg->v
+    struct sockaddr_in server_UDP = arg->server_addr_UDP_W;
+
+
+    /**
+    Ciclo while che opera fino a quando il client è in funzione.
+    **/
+
+    while(1){
+
+
     //richiesta di tutti gli update degli altri veicoli, per aggiornare il proprio mondo
     //da sistemare la dimensione
 
         char world_update[DIM_BUFF];
         int world_update_len;
+        
+        ret= recv_UDP(socket_UDP,&world_update_len,sizeof(int),0, server_UDP, sizeof(struct sockaddr_in));
+        PTHREAD_ERROR_HELPER(-1, "Could not receive size of  world update");
+        
+        ret= recv_UDP(socket_UDP,world_update,world_update_len,0, server_UDP, sizeof(struct sockaddr_in));
+        PTHREAD_ERROR_HELPER(-1, "Could not receive world update");
 
-        while ((ret = recvfrom(socket_UDP, world_update,/*dimensione variabile */ , 0, (struct sockaddr*) server_UDP, sizeof(server_UDP)) < 0)){
-            if (errno == EINTR) continue;
-            else if (errno == ENOTCONN) {
-                printf("Server closed connection, could not receive world update. Goodbye!");
-                exit(0);
-            }
-            PTHREAD_ERROR_HELPER(-1, "Could not receive num vehicles from server");
-        }
 
         world_update[world_update_len] = '\0';
         world_update_len++;
@@ -311,7 +347,7 @@ int main(int argc, char **argv) {
 
 
 	//set up parameters for connection
-	server_addr.sin_addr.in_addr = inet_addr(argv[1]);
+	server_addr.sin_addr.in_addr = inet_addr("127.0.0.1");
 	server_addr.sin_family = AF_INET;
 	server_addr.sin_port = htons(SERVER_PORT_TCP);
 
@@ -319,18 +355,32 @@ int main(int argc, char **argv) {
 	ret = connect(socket_desc, (struct sockaddr*) &server_addr, sizeof(struct sockaddr_in));
 	ERROR_HELPER(ret, "Could not connect to socket");
 
-	//variable for UDP socket
-	int socket_desc_UDP;
-	struct sockaddr_in server_addr_UDP{0};
+	//variable for UDP_M socket
+	int socket_desc_UDP_M;
+	struct sockaddr_in server_addr_UDP_M{0};
 	//creating UDP sopcket
 	socket_desc_UDP = socket(AF_INET, SOCK_DGRAM, 0);
-	ERROR_HELPER(socket_desc_UDP, "Could not create socket udp");
+	ERROR_HELPER(socket_desc_UDP_M, "Could not create socket udp");
 	//set up parameters
-	server_addr_UDP.sin_addr.in_addr = inet_addr(argv[1]);
-	server_addr_UDP.sin_family = AF_INET;
-	server_addr_UDP.sin_port = htons(SERVER_PORT_UDP);
+	server_addr_UDP_M.sin_addr.in_addr = inet_addr("127.0.0.1");
+	server_addr_UDP_M.sin_family = AF_INET;
+	server_addr_UDP:M.sin_port = htons(SERVER_PORT_UDP_M);
 	//bind UDP socket
-	ret = bind(socket_desc_UDP, (struct sockaddr*) &server_addr_UDP, sizeof(struct sockaddr_in));
+	ret = bind(socket_desc_UDP_M, (struct sockaddr*) &server_addr_UDP_M, sizeof(struct sockaddr_in));
+	ERROR_HELPER(ret, "Could not connect to socket (udp)");
+	
+	//variable for UDP_W socket
+	int socket_desc_UDP_W;
+	struct sockaddr_in server_addr_UDP_W{0};
+	//creating UDP sopcket
+	socket_desc_UDP_W = socket(AF_INET, SOCK_DGRAM, 0);
+	ERROR_HELPER(socket_desc_UDP_W, "Could not create socket udp");
+	//set up parameters
+	server_addr_UDP_W.sin_addr.in_addr = inet_addr("127.0.0.1");
+	server_addr_UDP_W.sin_family = AF_INET;
+	server_addr_UDP:W.sin_port = htons(SERVER_PORT_UDP_W);
+	//bind UDP socket
+	ret = bind(socket_desc_UDP_W, (struct sockaddr*) &server_addr_UDP_W, sizeof(struct sockaddr_in));
 	ERROR_HELPER(ret, "Could not connect to socket (udp)");
 
 	/**LOGIN**/
@@ -592,11 +642,15 @@ int main(int argc, char **argv) {
 	args->v=vehicle;
 	args->id=my_id
 	args->socket_desc_TCP=socket_desc;
-	args->socket_desc_UDP=socket_desc_UDP;
+	args->socket_desc_UDP_M=socket_desc_UDP_M;
+	args->socket_desc_UDP_W=socket_desc_UDP_W;
 	args->map_texture=map_texture;
-	args->server_addr_UDP = server_addr_UDP;
+	args->server_addr_UDP_M = server_addr_UDP_M;
+	args->server_addr_UDP_W = server_addr_UDP_W;
 	pthread_t thread_tcp;
-	pthread_t thread_udp;
+	pthread_t thread_udp_M;
+	pthread_t thread_udp_W;
+	
 
 	/**
 	// create the semaphore to manipulate the quit_packet in critical section
@@ -607,13 +661,19 @@ int main(int argc, char **argv) {
 	ret = pthread_create(&thread_tcp, NULL, thread_listener_tcp,args);
 	ERROR_HELPER(ret, "Could not create thread");
 
-	ret = pthread_detach(&thread);
+	ret = pthread_detach(&thread_tcp);
 	ERROR_HELPER(ret, "Could not detach thread");
 
-	ret = pthread_create(&thread_udp, NULL, thread_listener_udp,args);
+	ret = pthread_create(&thread_udp_M, NULL, thread_listener_udp_M,args);
 	ERROR_HELPER(ret, "Could not create thread");
 
-	ret = pthread_detach(&thread);
+	ret = pthread_detach(&thread_udp_M);
+	ERROR_HELPER(ret, "Could not detach thread");
+	
+	ret = pthread_create(&thread_udp_W, NULL, thread_listener_udp_W,args);
+	ERROR_HELPER(ret, "Could not create thread");
+
+	ret = pthread_detach(&thread_udp_W);
 	ERROR_HELPER(ret, "Could not detach thread");
 
 	WorldViewer_runGlobal(&world, vehicle, &argc, argv);

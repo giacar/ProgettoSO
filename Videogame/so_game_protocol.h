@@ -69,15 +69,6 @@ typedef struct {
   ClientUpdate* updates;
 } WorldUpdatePacket;
 
-typedef struct thread_client_args{
-    Vehicle v;  //veicolo del client
-    int socket_desc_TCP;    //descrittore della socket con cui comunicare col server(TCP)
-    int socket_desc_UDP;    //descritto socket per UDP
-    int id;     //id ricevuto dal server
-    Image* map_texture; //texture della mappa che andrà aggiornato
-    struct sockaddr_in server_addr_UDP;  //necessario per la comunicazione UDP
-
-}thread_client_args;
 
 
 // converts a well formed packet into a string in dest.
