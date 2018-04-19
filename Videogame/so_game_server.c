@@ -464,37 +464,36 @@ void* thread_server_TCP(void* thread_server_TCP_args){
 }
 
 void* thread_server_UDP_sender(void* thread_server_UDP_args){
+    
+    int ret;
+
+	//ad intervalli regolari integrare il mondo  svuotare lista movimenti ed inviare le nuove posizioni di tutti i client a tutti i client
+
+    ret = sem_wait(&sem_thread_UDP);
+    PTHREAD_ERROR_HELPER(ret, "Failed to wait sem_thread_UDP in thread_UDP_sender");
 
 
+    // TODO
 
 
-
-
-	//ad intervalli regolari integrare il mondo  svuorare lista movimenti ed inviare le nuove poszioni di tutti i clientn a tutti i client
-
-
-
-
-
-
+    ret = sem_post(&sem_thread_UDP);
+    ERROR_HELPER(ret, "Failed to post sem_thread_UDP in thread_UDP_sender");
 
 }
 
 void* thread_server_UDP_receiver(void* thread_server_UDP_args){
 
+    int ret;
+
 	//ricevere tutte le intenzioni di movimento e salvarle nella lista dei movimenti da effettuare
 
+    ret = sem_wait(&sem_thread_UDP);
+    PTHREAD_ERROR_HELPER(ret, "Failed to wait sem_thread_UDP in thread_UDP_receiver");
 
+    // TODO
 
-
-
-
-
-
-
-
-
-
+    ret = sem_post(&sem_thread_UDP);
+    ERROR_HELPER(ret, "Failed to post sem_thread_UDP in thread_UDP_receiver");
 
 }
 

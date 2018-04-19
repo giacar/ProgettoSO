@@ -26,10 +26,12 @@ Please see the [DOCUMENTATION.md](Documentation.md) file for details
 
 * Login system implementation
 * TCP-side implementation
+* UDP-side implementation
 
 ### Server-Side
 
 * Login system implementation
+* TCP-side implementation
 
 ## To Do
 
@@ -37,12 +39,12 @@ Please see the [DOCUMENTATION.md](Documentation.md) file for details
 
 * <s>Login system implementation</s>
 * <s>TCP-side implementation</s>
-* UDP-side implementation
+* <s>UDP-side implementation</s>
 
 ### Server-Side
 
 * <s>Login system implementation</s>
-* TCP-side implementation
+* <s>TCP-side implementation</s>
 * UDP-side implementation
 
 ## Test and Bugs

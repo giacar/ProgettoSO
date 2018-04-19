@@ -364,7 +364,7 @@ int main(int argc, char **argv) {
 	//set up parameters
 	server_addr_UDP_M.sin_addr.in_addr = inet_addr("127.0.0.1");
 	server_addr_UDP_M.sin_family = AF_INET;
-	server_addr_UDP:M.sin_port = htons(SERVER_PORT_UDP_M);
+	server_addr_UDP_M.sin_port = htons(SERVER_PORT_UDP_M);
 	//bind UDP socket
 	ret = bind(socket_desc_UDP_M, (struct sockaddr*) &server_addr_UDP_M, sizeof(struct sockaddr_in));
 	ERROR_HELPER(ret, "Could not connect to socket (udp)");
@@ -378,7 +378,7 @@ int main(int argc, char **argv) {
 	//set up parameters
 	server_addr_UDP_W.sin_addr.in_addr = inet_addr("127.0.0.1");
 	server_addr_UDP_W.sin_family = AF_INET;
-	server_addr_UDP:W.sin_port = htons(SERVER_PORT_UDP_W);
+	server_addr_UDP_W.sin_port = htons(SERVER_PORT_UDP_W);
 	//bind UDP socket
 	ret = bind(socket_desc_UDP_W, (struct sockaddr*) &server_addr_UDP_W, sizeof(struct sockaddr_in));
 	ERROR_HELPER(ret, "Could not connect to socket (udp)");
@@ -651,12 +651,6 @@ int main(int argc, char **argv) {
 	pthread_t thread_udp_M;
 	pthread_t thread_udp_W;
 	
-
-	/**
-	// create the semaphore to manipulate the quit_packet in critical section
-	ret = sem_init(&sem_quit_handle, 0, 1);
-	ERROR_HELPER(ret, "Could not create squit semaphore");
-	**/
 
 	ret = pthread_create(&thread_tcp, NULL, thread_listener_tcp,args);
 	ERROR_HELPER(ret, "Could not create thread");
