@@ -3,6 +3,7 @@
 typedef struct ListItem {
   struct ListItem* prev;
   struct ListItem* next;
+  void *elem;
 } ListItem;
 
 typedef struct ListHead {

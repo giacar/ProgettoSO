@@ -19,10 +19,13 @@ user_table utenti[MAX_USER_NUM];
 // deve contenere ID texture. Stessa cosa vale con una lista di client disconnessi
 // in modo da ripristinare lo stato in caso di un nuovo login
 clients*  client[MAX_USER_NUM];    //vettore di puntatori a strutture dati clients
+ListHead mov_int_list;             //lista delle intenzioni dei movimenti
+int num_online = 0;                //numero degli utenti online
 
 
 sem_t sem_utenti;
 sem_t sem_thread_UDP;
+sem_t sem_online;
 
 /**
 NOTA PER IL SERVER: Quando c'è un errore su una socket di tipo ENOTCONN (sia UDP che TCP), allora vuol dire che il client si è disconnesso (indipendetemente
@@ -203,6 +206,12 @@ void* thread_server_TCP(void* thread_server_TCP_args){
     client->header=img_head;
     client->header->type = PostTexture;
     client->header->size = sizeof(ImagePacket);
+
+    ret = sem_wait(&sem_online);
+    PTHREAD_ERROR_HELPER(ret, "Failed to decrease sem_online in TCP thread");
+    num_online++;
+    ret = sem_post(&sem_online);
+    ERROR_HELPER(ret, "Failed to increase sem_online in TCP thread");
 
     for (j = 0; j < MAX_USER_NUM; j++){
         if (client_connected[j] != NULL && j != idx){
@@ -465,35 +474,85 @@ void* thread_server_TCP(void* thread_server_TCP_args){
 
 void* thread_server_UDP_sender(void* thread_server_UDP_args){
     
-    int ret;
+    int ret, socket, num_nodi = 0;
+    char msg[DIM_BUFF];
+
+    thread_server_UDP_args *arg = (thread_server_UDP_args) args;
+
+    socket = arg->socket_desc_UDP_server_M;
+    struct sockaddr_in *server_struct_UDP_W = &(arg->server_addr_UDP_M);
+
 
 	//ad intervalli regolari integrare il mondo  svuotare lista movimenti ed inviare le nuove posizioni di tutti i client a tutti i client
+    //DA FINIRE E CONTROLLARNE LA CORRETTEZZA
+    while(1) {
+        ret = sem_wait(&sem_thread_UDP);
+        PTHREAD_ERROR_HELPER(ret, "Failed to wait sem_thread_UDP in thread_UDP_sender");
 
-    ret = sem_wait(&sem_thread_UDP);
-    PTHREAD_ERROR_HELPER(ret, "Failed to wait sem_thread_UDP in thread_UDP_sender");
+        //TODO
+        while(num_nodi < num_online) {
+            // TODO
+        }
 
-
-    // TODO
-
-
-    ret = sem_post(&sem_thread_UDP);
-    ERROR_HELPER(ret, "Failed to post sem_thread_UDP in thread_UDP_sender");
+        ret = sem_post(&sem_thread_UDP);
+        ERROR_HELPER(ret, "Failed to post sem_thread_UDP in thread_UDP_sender");
+    }
 
 }
 
 void* thread_server_UDP_receiver(void* thread_server_UDP_args){
 
-    int ret;
+    int ret, socket, num_nodi = 0;
+    char msg[DIM_BUFF];
+
+    thread_server_UDP_args *arg = (thread_server_UDP_args) args;
+
+    socket = arg->socket_desc_UDP_server_W;
+    struct sockaddr_in *server_struct_UDP_W = &(arg->server_addr_UDP_W);
+
 
 	//ricevere tutte le intenzioni di movimento e salvarle nella lista dei movimenti da effettuare
+    // DA CONTROLLARNE LA CORRETTEZZA
+    while (1) {
+        ret = sem_wait(&sem_thread_UDP);
+        PTHREAD_ERROR_HELPER(ret, "Failed to wait sem_thread_UDP in thread_UDP_receiver");
 
-    ret = sem_wait(&sem_thread_UDP);
-    PTHREAD_ERROR_HELPER(ret, "Failed to wait sem_thread_UDP in thread_UDP_receiver");
+        while(num_nodi < num_online) {
+            
+            ret = recv_UDP(socket, msg, 1, 0, (struct sockaddr *) server_struct_UDP_W, sizeof(sockaddr_in));
+            if (ret == -2) {
+                printf("Could not send user data to client\n");
+                ret = sem_post(&sem_thread_UDP);
+                ERROR_HELPER(ret, "Failed to post sem_thread_UDP in thread_UDP_receiver");
+                pthread_exit(0);  
+            }
 
-    // TODO
+            // deserializzo il pacchetto appena ricevuto
+            PacketHeader* head = Packet_deserialize(msg, sizeof(msg));
 
-    ret = sem_post(&sem_thread_UDP);
-    ERROR_HELPER(ret, "Failed to post sem_thread_UDP in thread_UDP_receiver");
+            // pacchetto di aggiornamento del veicolo
+            VehicleUpdatePacket *packet = (VehicleUpdatePacket *) head;
+
+            // dichiarazione e inizializzazione del nodo da aggiungere nella lista
+            ListItem vec_upd = {0};
+            vec_upd.prev = mov_int_list.last;
+            vec_upd.next = NULL;
+            vec_upd.elem = packet;
+
+            // inserimento nodo nella lista
+            vec_upd = List_insert(mov_int_list, mov_int_list.last, vec_upd);
+            if (!vec_upd) {
+                ret = sem_post(&sem_thread_UDP);
+                ERROR_HELPER(ret, "Failed to post sem_thread_UDP in thread_UDP_receiver");
+                PTHREAD_ERROR_HELPER(ret, "Failed to insert vehicle update in mov_int_list"); 
+            }
+
+            num_nodi++;
+        }
+
+        ret = sem_post(&sem_thread_UDP);
+        ERROR_HELPER(ret, "Failed to post sem_thread_UDP in thread_UDP_receiver");
+    }
 
 }
 
@@ -533,7 +592,7 @@ int main(int argc, char **argv) {
         printf("Fail! \n");
     }
 
-    // Inizializzo i due array di client connessi e disconnessi
+    // inizializzo i due array di client connessi e disconnessi
 
     int i;
     for (i = 0; i < MAX_USER_NUM; i++){
@@ -542,10 +601,13 @@ int main(int argc, char **argv) {
 
     int ret;
 
-	// inizializzo i semafori di mutex per client list e per tabella utenti
+	// inizializzo i semafori di mutex per tabella utenti e per num_online
 
 	ret = sem_init(&sem_utenti, 1, 0);
 	ERROR_HELPER(ret, "Failed to initialization of sem_utenti");
+
+    ret = sem_init(&sem_online, 1, 0);
+    ERROR_HELPER(ret, "Failed to initialization of sem_online");
 
 	// inizializzo array di utenti
 	for (i = 0; i < MAX_USER_NUM; i++) {
@@ -554,10 +616,13 @@ int main(int argc, char **argv) {
 		utenti[i].id = -1;
 	}
 
+    // inizializzo lista delle intenzioni di movimento usata dai thread UDP
+    Listinit(&mov_int_list);
+
     //definisco descrittore server socket e struttura per bind
 
     int server_socket_UDP_M;
-    struct server_addr_UDP_M {0};
+    struct sockaddr server_addr_UDP_M = {0};
 
     //imposto i valori della struttura
 
@@ -578,7 +643,7 @@ int main(int argc, char **argv) {
     //definisco descrittore server socket e struttura per bind
 
     int server_socket_UDP_W;
-    struct server_addr_UDP_W {0};
+    struct sockaddr server_addr_UDP_W = {0};
 
     //imposto i valori della struttura
 
@@ -608,6 +673,8 @@ int main(int argc, char **argv) {
     thread_server_UDP_args* args_UDP=(thread_server_UDP_args*)malloc(sizeof(thread_server_UDP_args));
     args_UDP->socket_desc_UDP_server_W=server_socket_UDP_W;
     args_UDP->socket_desc_UDP_server_M=server_socket_UDP_M;
+    args_UDP->server_addr_UDP_W = server_addr_UDP_W;
+    args_UDP->server_addr_UDP_M = server_addr_UDP_M;
     args_UDP->list=client;
     
     //creo i thread
@@ -630,7 +697,7 @@ int main(int argc, char **argv) {
     //definisco descrittore server socket TCP
 
     int server_socket_TCP;
-    struct server_addr {0};
+    struct sockaddr server_addr = {0};
 
     //imposto i valori delle struttura per accettare connessioni
 

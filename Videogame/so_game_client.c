@@ -357,7 +357,7 @@ int main(int argc, char **argv) {
 
 	//variable for UDP_M socket
 	int socket_desc_UDP_M;
-	struct sockaddr_in server_addr_UDP_M{0};
+	struct sockaddr_in server_addr_UDP_M = {0};
 	//creating UDP sopcket
 	socket_desc_UDP = socket(AF_INET, SOCK_DGRAM, 0);
 	ERROR_HELPER(socket_desc_UDP_M, "Could not create socket udp");
@@ -371,7 +371,7 @@ int main(int argc, char **argv) {
 	
 	//variable for UDP_W socket
 	int socket_desc_UDP_W;
-	struct sockaddr_in server_addr_UDP_W{0};
+	struct sockaddr_in server_addr_UDP_W = {0};
 	//creating UDP sopcket
 	socket_desc_UDP_W = socket(AF_INET, SOCK_DGRAM, 0);
 	ERROR_HELPER(socket_desc_UDP_W, "Could not create socket udp");

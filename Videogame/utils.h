@@ -8,6 +8,8 @@ typedef struct thread_server_TCP_args{
 typedef struct thread_server_UDP_args{
     int socket_desc_UDP_server_W;
     int socket_desc_UDP_server_M;
+    struct sockaddr_in server_addr_UDP_M; //necessario per la comunicazione UDP_M
+    struct sockaddr_in server_addr_UDP_W; //necessario per la comunicazione UDP_W
     clients** list;
 }thread_server_UDP_args;
 
