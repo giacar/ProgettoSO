@@ -477,21 +477,35 @@ void* thread_server_UDP_sender(void* thread_server_UDP_args){
     int ret, socket, num_nodi = 0;
     char msg[DIM_BUFF];
 
+    PacketHeader *head;
+    VehicleUpdatePacket *packet;
+    ListItem *vec_upd;
+
     thread_server_UDP_args *arg = (thread_server_UDP_args) args;
 
     socket = arg->socket_desc_UDP_server_M;
     struct sockaddr_in *server_struct_UDP_W = &(arg->server_addr_UDP_M);
 
 
-	//ad intervalli regolari integrare il mondo  svuotare lista movimenti ed inviare le nuove posizioni di tutti i client a tutti i client
+	//ad intervalli regolari integrare il mondo, svuotare lista movimenti ed inviare le nuove posizioni di tutti i client a tutti i client
     //DA FINIRE E CONTROLLARNE LA CORRETTEZZA
     while(1) {
         ret = sem_wait(&sem_thread_UDP);
         PTHREAD_ERROR_HELPER(ret, "Failed to wait sem_thread_UDP in thread_UDP_sender");
 
-        //TODO
-        while(num_nodi < num_online) {
-            // TODO
+        //DA FINIRE
+        while(mov_int_list.size > 0) {
+            //estrazione dell'ultimo nodo dalla lista dei movimenti e dell'elemento dal nodo stesso
+            vec_upd = List_detach(&mov_int_list, mov_int_list.last);
+            packet = (VehicleUpdatePacket *) vec_upd;
+
+            ret = send_UDP();
+            if (ret == -2) {
+                printf("Could not send user data to client\n");
+                ret = sem_post(&sem_thread_UDP);
+                ERROR_HELPER(ret, "Failed to post sem_thread_UDP in thread_UDP_receiver");
+                pthread_exit(0);  
+            }
         }
 
         ret = sem_post(&sem_thread_UDP);
@@ -504,6 +518,10 @@ void* thread_server_UDP_receiver(void* thread_server_UDP_args){
 
     int ret, socket, num_nodi = 0;
     char msg[DIM_BUFF];
+
+    PacketHeader *head;
+    VehicleUpdatePacket *packet;
+    ListItem *vec_upd;
 
     thread_server_UDP_args *arg = (thread_server_UDP_args) args;
 
@@ -518,7 +536,6 @@ void* thread_server_UDP_receiver(void* thread_server_UDP_args){
         PTHREAD_ERROR_HELPER(ret, "Failed to wait sem_thread_UDP in thread_UDP_receiver");
 
         while(num_nodi < num_online) {
-            
             ret = recv_UDP(socket, msg, 1, 0, (struct sockaddr *) server_struct_UDP_W, sizeof(sockaddr_in));
             if (ret == -2) {
                 printf("Could not send user data to client\n");
@@ -528,23 +545,23 @@ void* thread_server_UDP_receiver(void* thread_server_UDP_args){
             }
 
             // deserializzo il pacchetto appena ricevuto
-            PacketHeader* head = Packet_deserialize(msg, sizeof(msg));
+            head = Packet_deserialize(msg, sizeof(msg));
 
             // pacchetto di aggiornamento del veicolo
-            VehicleUpdatePacket *packet = (VehicleUpdatePacket *) head;
+            packet = (VehicleUpdatePacket *) head;
 
-            // dichiarazione e inizializzazione del nodo da aggiungere nella lista
-            ListItem vec_upd = {0};
-            vec_upd.prev = mov_int_list.last;
-            vec_upd.next = NULL;
-            vec_upd.elem = packet;
+            // inizializzazione del nodo da aggiungere nella lista
+            vec_upd = malloc(sizeof(ListItem));
+            vec_upd->prev = mov_int_list.last;
+            vec_upd->next = NULL;
+            vec_upd->elem = packet;
 
             // inserimento nodo nella lista
-            vec_upd = List_insert(mov_int_list, mov_int_list.last, vec_upd);
+            vec_upd = List_insert(&mov_int_list, mov_int_list.last, vec_upd);
             if (!vec_upd) {
                 ret = sem_post(&sem_thread_UDP);
                 ERROR_HELPER(ret, "Failed to post sem_thread_UDP in thread_UDP_receiver");
-                PTHREAD_ERROR_HELPER(ret, "Failed to insert vehicle update in mov_int_list"); 
+                PTHREAD_ERROR_HELPER(*vec_upd, "Failed to insert vehicle update in mov_int_list"); 
             }
 
             num_nodi++;

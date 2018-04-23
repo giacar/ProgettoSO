@@ -4,7 +4,7 @@ Progetto di Sistemi Operativi del corso di laurea in Ingegneria Informatica e Au
 
 ## Built With
 
-* [C](https://it.wikipedia.org/wiki/C_(linguaggio)) - C Language
+* [C](https://en.wikipedia.org/wiki/C_(programming_language)) - C Language
 
 ## Authors
 
