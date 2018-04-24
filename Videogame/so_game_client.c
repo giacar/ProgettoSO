@@ -47,7 +47,7 @@ void* thread_listener_tcp(void* client_args){
 
     **/
 
-    thread_client_args arg = (thread_client_args) client_args;
+    thread_client_args* arg = (thread_client_args*) client_args;
     int socket_UDP = arg->socket_desc_UDP;
     int socket=arg->socket_desc_TCP;
     int id=arg->id;
@@ -109,7 +109,7 @@ void* thread_listener_udp_M(void* client_args){
 
     **/
 
-    thread_client_args arg = (thread_client_args) client_args;
+    thread_client_args* arg = (thread_client_args*) client_args;
     int socket_UDP = arg->socket_desc_UDP_M;
     int id=arg->id;
     Image* map_texture=arg->map_texture;
@@ -131,6 +131,7 @@ void* thread_listener_udp_M(void* client_args){
         update->header=&update_head;
         update->translational_force = v->translational_force_update;
         update->rotational_force = v->rotational_force_update;
+        update->id = id;
         update->header->size = sizeof(VehicleUpdatePacket);
         update->header->type = VehicleUpdate;
 
@@ -164,7 +165,7 @@ void* thread_listener_udp_W(void* client_args){
 
     **/
 
-    thread_client_args arg = (thread_client_args) client_args;
+    thread_client_args* arg = (thread_client_args*) client_args;
     int socket_UDP = arg->socket_desc_UDP_W;
     int id=arg->id;
     Image* map_texture=arg->map_texture;
@@ -184,10 +185,10 @@ void* thread_listener_udp_W(void* client_args){
 
         char world_update[DIM_BUFF];
         int world_update_len;
-        
+
         ret= recv_UDP(socket_UDP,&world_update_len,sizeof(int),0, server_UDP, sizeof(struct sockaddr_in));
         PTHREAD_ERROR_HELPER(-1, "Could not receive size of  world update");
-        
+
         ret= recv_UDP(socket_UDP,world_update,world_update_len,0, server_UDP, sizeof(struct sockaddr_in));
         PTHREAD_ERROR_HELPER(-1, "Could not receive world update");
 
@@ -368,7 +369,7 @@ int main(int argc, char **argv) {
 	//bind UDP socket
 	ret = bind(socket_desc_UDP_M, (struct sockaddr*) &server_addr_UDP_M, sizeof(struct sockaddr_in));
 	ERROR_HELPER(ret, "Could not connect to socket (udp)");
-	
+
 	//variable for UDP_W socket
 	int socket_desc_UDP_W;
 	struct sockaddr_in server_addr_UDP_W = {0};
@@ -650,21 +651,21 @@ int main(int argc, char **argv) {
 	pthread_t thread_tcp;
 	pthread_t thread_udp_M;
 	pthread_t thread_udp_W;
-	
 
-	ret = pthread_create(&thread_tcp, NULL, thread_listener_tcp,args);
+
+	ret = pthread_create(&thread_tcp, NULL, thread_listener_tcp, (void*) args);
 	ERROR_HELPER(ret, "Could not create thread");
 
 	ret = pthread_detach(&thread_tcp);
 	ERROR_HELPER(ret, "Could not detach thread");
 
-	ret = pthread_create(&thread_udp_M, NULL, thread_listener_udp_M,args);
+	ret = pthread_create(&thread_udp_M, NULL, thread_listener_udp_M, (void*) args);
 	ERROR_HELPER(ret, "Could not create thread");
 
 	ret = pthread_detach(&thread_udp_M);
 	ERROR_HELPER(ret, "Could not detach thread");
-	
-	ret = pthread_create(&thread_udp_W, NULL, thread_listener_udp_W,args);
+
+	ret = pthread_create(&thread_udp_W, NULL, thread_listener_udp_W, (void*) args);
 	ERROR_HELPER(ret, "Could not create thread");
 
 	ret = pthread_detach(&thread_udp_W);
