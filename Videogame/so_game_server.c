@@ -484,7 +484,14 @@ void* thread_server_UDP_sender(void* args){
   float x;
   float y;
   float theta;
-} ClientUpdate;**/
+} ClientUpdate;
+*
+* typedef struct {
+  PacketHeader header;
+  int id;
+  float rotational_force;
+  float translational_force;
+} VehicleUpdatePacket;**/
 
     int ret, socket, num_nodi = 0;
     char msg[DIM_BUFF];
@@ -493,6 +500,7 @@ void* thread_server_UDP_sender(void* args){
     VehicleUpdatePacket *packet;
     ListItem *vec_upd;
     ClientUpdate* updates[MAX_USER_NUM];
+
     int client_id;
     float client_x;
     float client_y;

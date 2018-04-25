@@ -27,8 +27,8 @@ typedef struct thread_client_args{
 
 
 typedef struct user_table {
-	char[64] username;
-	char[64] password;
+	char username[64];
+	char password[64];
 	//id è la posizione nel vettore
 }user_table;
 

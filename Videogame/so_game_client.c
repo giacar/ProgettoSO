@@ -641,7 +641,7 @@ int main(int argc, char **argv) {
 	/*FILLME*/
 	thread_client_args* args=malloc(sizeof(thread_client_args));
 	args->v=vehicle;
-	args->id=my_id
+	args->id=my_id;
 	args->socket_desc_TCP=socket_desc;
 	args->socket_desc_UDP_M=socket_desc_UDP_M;
 	args->socket_desc_UDP_W=socket_desc_UDP_W;
