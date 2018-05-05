@@ -1,8 +1,9 @@
 typedef struct thread_server_TCP_args{
     int socket_desc_TCP_client;
+    struct sockadrr_in* addr; //to send data over udp socket to the client
     Image* elevation_map;
     Image* map;
-    clients** list;
+    clients* list;
 }thread_server_TCP_args;
 
 typedef struct thread_server_UDP_args{
@@ -10,7 +11,7 @@ typedef struct thread_server_UDP_args{
     int socket_desc_UDP_server_M;
     struct sockaddr_in server_addr_UDP_M; //necessario per la comunicazione UDP_M
     struct sockaddr_in server_addr_UDP_W; //necessario per la comunicazione UDP_W
-    clients** list;
+    clients* list;
 }thread_server_UDP_args;
 
 typedef struct thread_client_args{
@@ -36,7 +37,7 @@ typedef struct clients{
 	int id;
 	int status //1:connected 0:disconnected
 	Image* texture;
-	sockadrr_in* addr; //to send data over udp socket to the client
+	struct sockadrr_in* addr; //to send data over udp socket to the client
 	int socket_TCP  //to send data over tcp to the client(la socket ricevuta dalla accept)
 }clients;
 

@@ -18,9 +18,10 @@ user_table utenti[MAX_USER_NUM];
 // Creare lista di tutti i client connessi che verranno man mano aggiunti e rimossi
 // deve contenere ID texture. Stessa cosa vale con una lista di client disconnessi
 // in modo da ripristinare lo stato in caso di un nuovo login
-clients*  client[MAX_USER_NUM];    //vettore di puntatori a strutture dati clients
+clients  client[MAX_USER_NUM];    //vettore di puntatori a strutture dati clients
 ListHead mov_int_list;             //lista delle intenzioni dei movimenti
 int num_online = 0;                //numero degli utenti online
+World world;                       //mondo
 
 
 sem_t sem_utenti;
@@ -46,6 +47,7 @@ void* thread_server_TCP(void* args){
     int socket=arg->socket_desc_TCP_client;
     Image* elevation_map = arg->elevation_map;      //elevation map
     Image* map = arg->map;                          //map
+    clients* client=arg->list;
 
     // Strutture dati per il Login
     char user_att[64];
@@ -194,45 +196,9 @@ void* thread_server_TCP(void* args){
 
 	}
 
-    /**OK! Il client si è connesso, adesso ha bisogno di sapere le informazioni (texture) di tutti gli altri client che sono connessi nel mondo.
-    Spediamo al client ogni cella dell'array di client connessi che non è messa a NULL, sottoforma di ImagePacket.
-    **/
-
-    int j;
-    char client_connesso[DIM_BUFF];
-    size_t msg_len;
-    ImagePacket* client = (ImagePacket*) malloc(sizeof(ImagePacket));
-    PacketHeader img_head;
-    client->header=img_head;
-    client->header->type = PostTexture;
-    client->header->size = sizeof(ImagePacket);
-
-    ret = sem_wait(&sem_online);
-    PTHREAD_ERROR_HELPER(ret, "Failed to decrease sem_online in TCP thread");
-
-    num_online++;
-
-    ret = sem_post(&sem_online);
-    ERROR_HELPER(ret, "Failed to increase sem_online in TCP thread");
-
-    for (j = 0; j < MAX_USER_NUM; j++){
-        if (clients[j] != NULL && j != idx){
-            client->id = j;
-            client->texture = clients[j]->texture;
-
-            msg_len = Packet_serialize(client_connesso, &(client->header));
-
-            ret = send_TCP(socket, client_connesso, msg_len, 0);
-            if (ret == -2){
-                printf("Could not send data over socket\n");
-                pthread_exit(0);
-            }
-            else PTHREAD_ERROR_HELPER(ret, "Could not send data over socket");
-        }
-    }
+    
 
 
-	//entrare nel loop di ricezione richiesta e comunicazione nuove connessioni / disconnessioni
 
     //nuovo utente: richiesta di id
 
@@ -291,9 +257,11 @@ void* thread_server_TCP(void* args){
         ImagePacket* client_texture = Packet_deserialize(texture_utente, msg_len);
         if (client_texture->header->type!=GetTexture) PTHREAD_ERROR_HELPER(-1, "Error in client texture packet!");
 
-        clients[idx]->id = idx;
-        clients[idx]->texture = client_texture->texture;
-        clients[idx]->status = 1;
+        client[idx]->id = idx;
+        client[idx]->texture = client_texture->image;
+        client[idx]->status = 1;
+        client[idx]->addr=arg->addr;
+        client[idx]->socket_TCP=arg->socket_desc_TCP_client
 
 
         size_t texture_utente_len;
@@ -302,13 +270,24 @@ void* thread_server_TCP(void* args){
         ret = send_TCP(socket, texture_utente, texture_utente_len, 0);
         if (ret == -2){
             printf("Could not send client texture\n");
-            clients[idx]->status = 0;
+            client[idx]->status = 0;
             pthread_exit(0);
         }
         else PTHREAD_ERROR_HELPER(ret, "Could not send client texture\n");
+        
+         // create a vehicle
+		Vehicle* vehicle=(Vehicle*) malloc(sizeof(Vehicle));
+		Vehicle_init(vehicle, &world, idx, client_texture);
+
+		//  add it to the world
+		World_addVehicle(&world, vehicle);
+        
+        
 
 
     }
+    
+    //utente gia registrato
 
     else if (login_status == 1){
 
@@ -333,13 +312,15 @@ void* thread_server_TCP(void* args){
         IdPacket* received = Packet_deserialize(idPacket_buf, msg_len);
         if (received->header->type != GetTexture) PTHREAD_ERROR_HELPER(-1, "Connection error (texture request)");
 
-        clients[idx]->status = 1;
+        client[idx]->status = 1;
+        client[idx]->addr=arg->addr;
+        client[idx]->socket_TCP=arg->socket_desc_TCP_client
 
         ImagePacket* client_texture = (ImagePacket*) malloc(sizeof(ImagePacket));
         PacketHeader client_header;
         client_texture->header = &client_header;
         client_texture->id = idx;
-        client_texture->texture = clients[idx]->texture;
+        client_texture->texture = client[idx]->texture;
         client_texture->header->type = PostTexture;
         client_texture->header->size = sizeof(ImagePacket);
 
@@ -351,7 +332,17 @@ void* thread_server_TCP(void* args){
             pthread_exit(0);
         }
         else PTHREAD_ERROR_HELPER(ret, "Could not send client texture and id");
+        
+         // create a vehicle
+		Vehicle* vehicle=(Vehicle*) malloc(sizeof(Vehicle));
+		Vehicle_init(vehicle, &world, idx, client_texture);
+
+		//  add it to the world
+		World_addVehicle(&world, vehicle);
+
     }
+    
+
 
     //utente invia la richiesta di elevation map
 
@@ -361,7 +352,7 @@ void* thread_server_TCP(void* args){
     ret = recv_TCP(socket, elevation_map_buffer, sizeof(ImagePacket), 0);
     if (ret == -2) {
         printf("Could not receive elevation map request\n");
-        clients[idx]->status = 0;
+        client[idx]->status = 0;
         pthread_exit(0);
     }
     else PTHREAD_ERROR_HELPER(ret, "Could not receive elevation map request");
@@ -387,7 +378,7 @@ void* thread_server_TCP(void* args){
     ret = send_TCP(socket, elevation_map, elevation_map_len, 0);
     if (ret == -2) {
         printf("Could not send elevation map\n");
-        clients[idx]->status = 0;
+        client[idx]->status = 0;
         pthread_exit(0);
     }
     else PTHREAD_ERROR_HELPER(ret, "Could not send elevation map to client");
@@ -400,7 +391,7 @@ void* thread_server_TCP(void* args){
     ret = recv_TCP(socket, map_buffer, sizeof(IdPacket), 0);
     if (ret == -2) {
         printf("Could not receive map request\n");
-        clients[idx]->status = 0;
+        client[idx]->status = 0;
         pthread_exit(0);
     }
     else PTHREAD_ERROR_HELPER(ret, "Could not receive map request");
@@ -428,10 +419,32 @@ void* thread_server_TCP(void* args){
     ret = send_TCP(socket, map_buffer, map_len, 0);
     if (ret == -2){
         printf("Could not send map to client\n");
-        clients[idx]->status = 0;
+        client[idx]->status = 0;
         pthread_exit(0);
     }
     else PTHREAD_ERROR_HELPER(ret, "Could not send map to client\n");
+    
+    //inviamo a tutti i client attualmente connessi la texture del nuovo client appena arrivato
+    ImagePacket* texture=(ImagePacket*)malloc(sizeof(ImagePacket));
+	PacketHeader head;
+	head.type=PostTexture;
+	texture->header=&head;
+	texture->id=idx;
+	texture->image=client[idx].texture;
+	char* texture_buffer[DIM_BUFF];
+	size_t texture_len=Packet_serialize(buffer,&(texture->head));
+    
+    for(i=0;i<MAX_USER_NUM;i++){
+		if(i!=idx && client[i].status==1){
+			ret = send_TCP(client[i].socket_TCP, texture_buffer, texture_len, 0);
+            if (ret == -2){
+                printf("Could not send user data to client\n");
+                client[i].status = 0;
+                pthread_exit(0);
+            }
+            else PTHREAD_ERROR_HELPER(ret, "Could not send user data to client\n");
+
+			
 
     /** Ultimata la connessione e l'inizializzazione del client, c'è bisogno di inviargli lo stato di tutti gli altri client già connessi [TODO] **/
 
@@ -444,24 +457,26 @@ void* thread_server_TCP(void* args){
     char client_alive_buf[DIM_BUFF];
     size_t alive_len;
 
-    //inviamo tutto il client_connected: le celle messe a NULL il client le eliminerà
+    //inviamo  le texture di tutti i cleint connessi
 
     for (i = 0; i < MAX_USER_NUM; i++){
-        if (i != idx){
-            client_alive->id = clients[i]->id;
-            client_alive->texture = clients[i]->texture;
+        if (i != idx && client[i].status==1){
+            client_alive->id = client[i].id;
+            client_alive->texture = client[i].texture;
 
             alive_len = Packet_serialize(client_alive_buf, &(client_alive->header));
 
             ret = send_TCP(socket, client_alive_buf, alive_len, 0);
             if (ret == -2){
                 printf("Could not send user data to client\n");
-                clients[idx]->status = 0;
+                client[idx]->status = 0;
                 pthread_exit(0);
             }
             else PTHREAD_ERROR_HELPER(ret, "Could not send user data to client\n");
         }
     }
+    
+  
 
     /** FINE LAVORO TCP **/
 
@@ -493,7 +508,7 @@ void* thread_server_UDP_sender(void* args){
   float translational_force;
 } VehicleUpdatePacket;**/
 
-    int ret, socket, num_nodi = 0;
+    int ret, socket = 0;
     char msg[DIM_BUFF];
 
     PacketHeader *head;
@@ -512,30 +527,60 @@ void* thread_server_UDP_sender(void* args){
 
     socket = arg->socket_desc_UDP_server_M;
     struct sockaddr_in *server_struct_UDP_W = &(arg->server_addr_UDP_M);
+    clients* client=arg->list;
+    
 
 
-	//ad intervalli regolari integrare il mondo, svuotare lista movimenti ed inviare le nuove posizioni di tutti i client a tutti i client
+	//ad intervalli regolari integrare il mondo,inviare le nuove posizioni di tutti i client a tutti i client
     //DA FINIRE E CONTROLLARNE LA CORRETTEZZA
     while(1) {
         ret = sem_wait(&sem_thread_UDP);
         PTHREAD_ERROR_HELPER(ret, "Failed to wait sem_thread_UDP in thread_UDP_sender");
 
         //DA FINIRE
-        while(mov_int_list.size > 0) {
-            //estrazione dell'ultimo nodo dalla lista dei movimenti e dell'elemento dal nodo stesso
-            vec_upd = List_detach(&mov_int_list, mov_int_list.last);
-            packet = (VehicleUpdatePacket *) vec_upd;
+        WorldUpdate(&world);
+        int i;
+        int num_connected=0;
+        for(i=0;i<MAX_USER_NUM;i++){
+			if(client[i].status==1){
+				num_connected++;
+			}
+		}
+		ClientUpdate* update=(ClientUpdate*)malloc(num_connected*sizeof(ClientUpdate));
+        for(i=0;i<MAX_USER_NUM;i++){
+			if(client[i].status==1){
+				Vehicle* v = world_getVehicle(&world,client[i].id);
+				update[i].id=client[i].id;
+				update[i].x=v->x;
+				update[i].y=v->y;
+				update[i].theta=v->theta;
+			}
+		}
+		
+		WorldUpdatePacket* worldup=(WorldUpdatePacket*)malloc(sizeof(WorldUpdatePacket));
+		PacketHeader head;
+		head.type=WorldUpdate;
+		head.size=sizeof(WorldUpdate)+num_connected*sizeof(ClientUpdate);
+		worldup->header=&head;
+		worldup->num_vehicles=num_connected;
+		worldup->updates=update;
+		
+		size_t packet_len=PacketSerialize(msg,&worldup->head);		
+		
+		// invio a tutti i connessi
 
 
-
-            ret = send_UDP(??);
-            if (ret == -2) {
-                printf("Could not send user data to client\n");
-                ret = sem_post(&sem_thread_UDP);
-                ERROR_HELPER(ret, "Failed to post sem_thread_UDP in thread_UDP_receiver");
-                pthread_exit(0);
-            }
-        }
+		for(i=0;i<MAX_USER_NUM;i++){
+			if(client[i].status==1){
+				ret = send_UDP(socket,msg,packet_len,0,client[i].addr,sizeof(struct sockaddr_in));
+				if (ret == -2) {
+					printf("Could not send user data to client\n");
+					ret = sem_post(&sem_thread_UDP);
+					ERROR_HELPER(ret, "Failed to post sem_thread_UDP in thread_UDP_receiver");
+					pthread_exit(0);
+				}
+			}
+		}
 
 
         ret = sem_post(&sem_thread_UDP);
@@ -546,7 +591,7 @@ void* thread_server_UDP_sender(void* args){
 
 void* thread_server_UDP_receiver(void* args){
 
-    int ret, socket, num_nodi = 0;
+    int ret, socket,  = 0;
     char msg[DIM_BUFF];
 
     PacketHeader *head;
@@ -559,13 +604,11 @@ void* thread_server_UDP_receiver(void* args){
     struct sockaddr_in *server_struct_UDP_W = &(arg->server_addr_UDP_W);
 
 
-	//ricevere tutte le intenzioni di movimento e salvarle nella lista dei movimenti da effettuare
+	//ricevere tutte le intenzioni di movimento e le sostituisce nei veicoli
     // DA CONTROLLARNE LA CORRETTEZZA
-    while (1) {
-        ret = sem_wait(&sem_thread_UDP);
-        PTHREAD_ERROR_HELPER(ret, "Failed to wait sem_thread_UDP in thread_UDP_receiver");
 
-        while(num_nodi < num_online) {
+
+        while(1) {//dobbiamo gestire ancora la chiusura del server 
             ret = recv_UDP(socket, msg, 1, 0, (struct sockaddr *) server_struct_UDP_W, sizeof(sockaddr_in));
             if (ret == -2) {
                 printf("Could not send user data to client\n");
@@ -579,26 +622,20 @@ void* thread_server_UDP_receiver(void* args){
 
             // pacchetto di aggiornamento del veicolo
             packet = (VehicleUpdatePacket *) head;
+            
+            ret = sem_wait(&sem_thread_UDP);
+			PTHREAD_ERROR_HELPER(ret, "Failed to wait sem_thread_UDP in thread_UDP_receiver");
+            //sostuisco le sue intenzioni di movimento ricevute nelle sue variabili nel mondo
+            
+            Vehicle v=world_getvehicle(&world,packet->id);
+            v->translational_force_update=packet->translational_force;
+            v->rotational_force_update=packet->rotational_force;
 
-            // inizializzazione del nodo da aggiungere nella lista
-            vec_upd = malloc(sizeof(ListItem));
-            vec_upd->prev = mov_int_list.last;
-            vec_upd->next = NULL;
-            vec_upd->elem = packet;
+           
+        
 
-            // inserimento nodo nella lista
-            vec_upd = List_insert(&mov_int_list, mov_int_list.last, vec_upd);
-            if (!vec_upd) {
-                ret = sem_post(&sem_thread_UDP);
-                ERROR_HELPER(ret, "Failed to post sem_thread_UDP in thread_UDP_receiver");
-                PTHREAD_ERROR_HELPER(*vec_upd, "Failed to insert vehicle update in mov_int_list");
-            }
-
-            num_nodi++;
-        }
-
-        ret = sem_post(&sem_thread_UDP);
-        ERROR_HELPER(ret, "Failed to post sem_thread_UDP in thread_UDP_receiver");
+			ret = sem_post(&sem_thread_UDP);
+			ERROR_HELPER(ret, "Failed to post sem_thread_UDP in thread_UDP_receiver");
     }
 
 }
@@ -662,6 +699,10 @@ int main(int argc, char **argv) {
 		utenti[i].password = NULL;
 		utenti[i].id = -1;
 	}
+	
+	//creo il mondo 
+	
+	World_init(&world, surface_elevation, surface_texture,  0.5, 0.5, 0.5);
 
     // inizializzo lista delle intenzioni di movimento usata dai thread UDP
     Listinit(&mov_int_list);
@@ -771,7 +812,8 @@ int main(int argc, char **argv) {
 
         // definisco descrittore della socket con cui parlerò poi con ogni client
 
-        struct sockaddr_in*  client_addr {0};
+        struct sockaddr_in*  client_addr= (struct sockaddr_in*)malloc(sizeof(struct sockaddr_in));
+        client_addr={0};
         int client_socket;
 
         // mi metto in attesa di connessioni
