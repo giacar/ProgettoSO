@@ -141,6 +141,8 @@ void* thread_listener_udp_M(void* client_args){
         ret = send_UDP(socket_UDP, vehicle_update, vehicle_update_len, 0, (struct sockaddr*) server_UDP, sizeof(server_UDP));
         PTHREAD_ERROR_HELPER(ret, "Could not send vehicle updates to server");
 
+        Packet_free(&update_head);
+
 
     }
 
@@ -187,7 +189,7 @@ void* thread_listener_udp_W(void* client_args){
         int world_update_len;
 
         ret= recv_UDP(socket_UDP,&world_update_len,sizeof(int),0, server_UDP, sizeof(struct sockaddr_in));
-        PTHREAD_ERROR_HELPER(-1, "Could not receive size of  world update");
+        PTHREAD_ERROR_HELPER(-1, "Could not receive size of world update");
 
         ret= recv_UDP(socket_UDP,world_update,world_update_len,0, server_UDP, sizeof(struct sockaddr_in));
         PTHREAD_ERROR_HELPER(-1, "Could not receive world update");
@@ -464,6 +466,8 @@ int main(int argc, char **argv) {
 		ret = send_TCP(socket_desc, idPacket_request, idPacket_request_len, 0);
 		ERROR_HELPER(ret, "Could not send id request  to socket");
 
+        Packet_free(&id_head);
+
 		ret = recv_TCP(socket_desc, idPacket, sizeof(idPacket), 0);
 		ERROR_HELPER(ret, "Could not read id from socket");
 
@@ -491,6 +495,8 @@ int main(int argc, char **argv) {
 
 		ret = send_TCP(socket_desc, texture_for_server, texture_for_server_len, 0);
 		ERROR_HELPER(ret, "Could not send my texture for server");
+
+        Packet_free(&img_head);
 
 		// receving my texture from server
 
@@ -534,6 +540,8 @@ int main(int argc, char **argv) {
 
 		ret = send_TCP(socket_desc, request_texture_for_server, request_texture_for_server_len, 0);
 		ERROR_HELPER(ret, "Could not send my texture for server");
+
+        Packet_free(&request_texture_head);
 
 		ret = recv_TCP(socket_desc, my_texture,sizeof(ImagePacket), 0);
 		ERROR_HELPER(ret, "Could not read my texture from socket");
@@ -582,6 +590,7 @@ int main(int argc, char **argv) {
 	ret = send_TCP(socket_desc, request_elevation_for_server, request_elevation_for_server_len, 0);
 	ERROR_HELPER(ret, "Could not send my texture for server");
 
+    Packet_free(&request_elevation_head);
 
 	ret = recv_TCP(socket_desc, elevation_map,sizeof(ImagePacket), 0);
 	ERROR_HELPER(ret, "Could not read elevation map from socket");
@@ -607,6 +616,8 @@ int main(int argc, char **argv) {
 
   	ret = send_TCP(socket_desc, request_texture_map_for_server, request_texture_map_for_server_len, 0);
   	ERROR_HELPER(ret, "Could not send my texture for server");
+
+    Packet_free(&map_head);
 
   	ret = recv_TCP(socket_desc, texture_map, sizeof(ImagePacket), 0);
   	ERROR_HELPER(ret, "Could not read map texture from socket");
