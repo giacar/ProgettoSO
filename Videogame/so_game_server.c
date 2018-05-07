@@ -5,6 +5,10 @@
 #include <unistd.h>
 #include <semaphore.h>
 #include <errno.h>
+#include <pthread.h>
+#include <sys/socket.h>
+#include <arpa/inet.h>
+#include <netinet/in.h>
 
 #include "image.h"
 #include "surface.h"
@@ -218,7 +222,7 @@ void* thread_server_TCP(void* args){
         msg_len++;
 
         IdPacket* id = Packet_deserialize(idPacket, msg_len);
-        if (id->header->type != GetId) PTHREAD_ERROR_HELPER(-1, "Error in packet type (client id)");
+        if (id->header.type != GetId) PTHREAD_ERROR_HELPER(-1, "Error in packet type (client id)");
 
         if (id->id == -1){
             id->id = idx;
@@ -318,11 +322,11 @@ void* thread_server_TCP(void* args){
 
         ImagePacket* client_texture = (ImagePacket*) malloc(sizeof(ImagePacket));
         PacketHeader client_header;
-        client_texture->header = &client_header;
+        client_texture->header = client_header;
         client_texture->id = idx;
         client_texture->texture = client[idx]->texture;
-        client_texture->header->type = PostTexture;
-        client_texture->header->size = sizeof(ImagePacket);
+        client_texture->header.type = PostTexture;
+        client_texture->header.size = sizeof(ImagePacket);
 
         idPacket_buf_len = Packet_serialize(idPacket_buf, &(client_texture->header));
 
@@ -367,11 +371,11 @@ void* thread_server_TCP(void* args){
 
     ImagePacket* ele_map = (ImagePacket*) malloc(sizeof(ImagePacket));
     PacketHeader elevation_header;
-    ele_map->header = &elevation_header;
+    ele_map->header = elevation_header;
     ele_map->texture = elevation_map;
     ele_map->id = id;
-    ele_map->header->type = PostElevation;
-    ele_map->header->size = sizeof(ImagePacket);
+    ele_map->header.type = PostElevation;
+    ele_map->header.size = sizeof(ImagePacket);
 
     elevation_map_len = Packet_serialize(elevation_map_buffer, &(ele_map->header));
 
@@ -410,11 +414,11 @@ void* thread_server_TCP(void* args){
     //invio mappa
     ImagePacket* map_packet = (ImagePacket*) malloc(sizeof(ImagePacket));
     PacketHeader map_header;
-    map_packet->header = &map_header;
+    map_packet->header = map_header;
     map_packet->id = id;
     map_packet->texture = map;
-    map_packet->header->type = PostTexture;
-    map_packet->header->size = sizeof(ImagePacket);
+    map_packet->header.type = PostTexture;
+    map_packet->header.size = sizeof(ImagePacket);
 
     map_len = Packet_serialize(map_buffer, &(map_packet->header));
 
@@ -432,7 +436,8 @@ void* thread_server_TCP(void* args){
     ImagePacket* texture=(ImagePacket*)malloc(sizeof(ImagePacket));
 	PacketHeader head;
 	head.type=PostTexture;
-	texture->header=&head;
+    head.size=sizeof(ImagePacket);
+	texture->header=head;
 	texture->id=idx;
 	texture->image=client[idx].texture;
 	char* texture_buffer[DIM_BUFF];
@@ -458,9 +463,9 @@ void* thread_server_TCP(void* args){
 
     ImagePacket* client_alive = (ImagePacket*) malloc(sizeof(ImagePacket));
     PacketHeader client_alive_header;
-    client_alive->header = &(client_alive_header);
-    client_alive->header->type=PostTexture;
-    client_alive->header->size=sizeof(ImagePacket);
+    client_alive->header = client_alive_header;
+    client_alive->header.type=PostTexture;
+    client_alive->header.size=sizeof(ImagePacket);
 
     char client_alive_buf[DIM_BUFF];
     size_t alive_len;
@@ -520,7 +525,7 @@ void* thread_server_UDP_sender(void* args){
     int ret, socket = 0;
     char msg[DIM_BUFF];
 
-    PacketHeader *head;
+    PacketHeader head;
     VehicleUpdatePacket *packet;
     ListItem *vec_upd;
     ClientUpdate* updates[MAX_USER_NUM];
@@ -567,10 +572,9 @@ void* thread_server_UDP_sender(void* args){
 		}
 
 		WorldUpdatePacket* worldup=(WorldUpdatePacket*)malloc(sizeof(WorldUpdatePacket));
-		PacketHeader head;
 		head.type=WorldUpdate;
-		head.size=sizeof(WorldUpdate)+num_connected*sizeof(ClientUpdate);
-		worldup->header=&head;
+		head.size=sizeof(WorldUpdatePacket)+num_connected*sizeof(ClientUpdate);
+		worldup->header=head;
 		worldup->num_vehicles=num_connected;
 		worldup->updates=update;
 

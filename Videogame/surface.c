@@ -16,7 +16,8 @@ void Surface_init(Surface* s, int rows, int cols, float row_scale, float col_sca
   memset(s->normals, 0, (sizeof(Vec3)*s->n_points));
   s->point_rows = (Vec3**) malloc  (sizeof (Vec3*)*rows);
   s->normal_rows = (Vec3**) malloc  (sizeof (Vec3*)*rows);
-  for (int i = 0; i<rows; i++){
+  int i;
+  for (i = 0; i<rows; i++){
     s->point_rows[i] = s->points + (i*cols);
     s->normal_rows[i] = s->normals + (i*cols);
   }
@@ -40,30 +41,31 @@ void Surface_destroy(Surface* s) {
   s->rows = 0;
   s->cols = 0;
   s->gl_texture = -1;
-  if (s->_destructor) 
+  if (s->_destructor)
     (*s->_destructor)(s);
 }
 
-void Surface_fromMatrix(Surface* s, 
+void Surface_fromMatrix(Surface* s,
 			    float** m, int rows, int cols,
 			    float row_scale, float col_scale, float z_scale) {
   Surface_init(s,rows,cols, row_scale, col_scale);
   // compute the points
-  for (int r=0; r<rows; r++) {
+  int r, c;
+  for (r=0; r<rows; r++) {
     Vec3* points_row_ptr = s->point_rows[r];
-    for (int c=0; c<cols; c++) {
+    for (c=0; c<cols; c++) {
       points_row_ptr->values[0]=row_scale*r;
       points_row_ptr->values[1]=col_scale*c;
       points_row_ptr->values[2]=z_scale*m[r][c];
       points_row_ptr++;
     }
   }
-  for (int r=1; r<rows-1; r++) {
+  for (r=1; r<rows-1; r++) {
     Vec3* normals_row_ptr = s->normal_rows[r];
     Vec3* points_row_ptr = s->point_rows[r];
     Vec3* points_row_prev = s->point_rows[r-1];
     Vec3* points_row_next = s->point_rows[r+1];
-    for (int c=1; c<cols-1; c++) {
+    for (c=1; c<cols-1; c++) {
       Vec3 delta_px, delta_py;
       v3compose(&delta_px, points_row_next, points_row_prev, 1, -1);
       v3compose(&delta_py, points_row_ptr+1, points_row_ptr-1, 1, -1);
@@ -87,16 +89,16 @@ int Surface_getTransform(float transform[16], Surface* s,
   int c = floor(y/s->col_scale);
   if (r<1 || r>s->rows-2 || c<1 || c>s->cols-2)
     return 0;
-  
+
   // coefficients for interpolation
   float dx = (x-r*s->row_scale)/s->row_scale;
   float dy = (y-c*s->col_scale)/s->col_scale;
-  
+
   // retrieve the neighbors for interpolation
   Vec3 p=s->point_rows[r][c];
   Vec3 n=s->normal_rows[r][c];
 
-  
+
   Vec3 px=s->point_rows[r+1][c];
   Vec3 nx=s->normal_rows[r+1][c];
 
@@ -119,7 +121,7 @@ int Surface_getTransform(float transform[16], Surface* s,
   v3compose(&dn, &dnx, &dny, 1, 1);
   v3compose(&n, &n, &dn, 1, 1);
   v3normalize(&n);
-  
+
 
   // compute the y versor as the cross product between the normal and a verctor oriented
   // along the alpha angle lying on the xy plane
@@ -139,7 +141,7 @@ int Surface_getTransform(float transform[16], Surface* s,
 
   Vec3 t;
   v3compose(&t, &p, &n, 1, z);
- 
+
   float* A=transform;
   if (inverse) {
     A[0]=rx.values[0]; A[4]=rx.values[1]; A[8]=rx.values[2]; A[12]=-v3dot(&rx,&t);

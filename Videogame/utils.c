@@ -3,10 +3,11 @@
 #include <sys/socket.h>
 #include <errno.h>
 #include <semaphore.h>
+#include <netinet/in.h>
 
 #include "utils.h"
 
-int recv_TCP(int socket, void *buf, size_t len, int flags) {
+int recv_TCP(int socket, char *buf, size_t len, int flags) {
 	int ret, bytes_read = 0;
 
 	// Ricezione conoscendo la dimensione (len > 1)
@@ -57,12 +58,12 @@ int recv_TCP(int socket, void *buf, size_t len, int flags) {
 	return ret;
 }
 
-int send_TCP(int socket, void *buf, size_t len, int flags) {
+int send_TCP(int socket, const char *buf, size_t len, int flags) {
 	int ret, bytes_sent = 0;
 
 	while (1) {
 
-		ret = recv(socket, buf+bytes_sent, len-bytes_sent, flags);
+		ret = send(socket, buf+bytes_sent, len-bytes_sent, flags);
 
 		if (errno == EINTR) {
 			bytes_sent += ret;
@@ -85,7 +86,7 @@ int send_TCP(int socket, void *buf, size_t len, int flags) {
 	return ret;
 }
 
-int recv_UDP(int socket, void *buf, size_t len, int flags, struct sockaddr *src_addr, socklen_t *addrlen) {
+int recv_UDP(int socket, char *buf, size_t len, int flags, struct sockaddr *src_addr, socklen_t *addrlen) {
 	int ret, bytes_read = 0;
 
 	// Ricezione conoscendo la dimensione (len > 1)
@@ -135,7 +136,7 @@ int recv_UDP(int socket, void *buf, size_t len, int flags, struct sockaddr *src_
 	return ret;
 }
 
-int send_UDP(int socket, const void *buf, size_t len, int flags, const struct sockaddr *dest_addr, socklen_t addrlen) {
+int send_UDP(int socket, const char *buf, size_t len, int flags, const struct sockaddr *dest_addr, socklen_t addrlen) {
 	int ret, bytes_sent = 0;
 
 	while (1) {
@@ -163,14 +164,14 @@ int send_UDP(int socket, const void *buf, size_t len, int flags, const struct so
 	return ret;
 }
 
-int sem_clean(sem_t sem_utenti, sem_t sem_thread_UDP){
+/**int sem_clean(sem_t sem_utenti, sem_t sem_thread_UDP){
     int ret;
 
-    ret = sem_destroy(sem_utenti);
+    ret = sem_destroy(&sem_utenti);
     if (ret == -1) printf("Could not destroy sem_utenti");
 
-    ret = sem_destroy(sem_thread_UDP);
+    ret = sem_destroy(&sem_thread_UDP);
     if (ret == -1) printf("Could not destroy sem_thread_UDP");
 
-}
+}**/
 // DA CONTROLLARNE LA CORRETTEZZA

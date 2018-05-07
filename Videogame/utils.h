@@ -1,3 +1,18 @@
+#pragma once
+#include <netinet/in.h>
+#include "surface.h"
+#include "image.h"
+#include "linked_list.h"
+#include "vehicle.h"
+
+typedef struct clients{
+	int id;
+	int status; //1:connected 0:disconnected
+	Image* texture;
+	struct sockadrr_in* addr; //to send data over udp socket to the client
+	int socket_TCP;  //to send data over tcp to the client(la socket ricevuta dalla accept)
+}clients;
+
 typedef struct thread_server_TCP_args{
     int socket_desc_TCP_client;
     struct sockadrr_in* addr; //to send data over udp socket to the client
@@ -33,14 +48,6 @@ typedef struct user_table {
 	//id è la posizione nel vettore
 }user_table;
 
-typedef struct clients{
-	int id;
-	int status //1:connected 0:disconnected
-	Image* texture;
-	struct sockadrr_in* addr; //to send data over udp socket to the client
-	int socket_TCP  //to send data over tcp to the client(la socket ricevuta dalla accept)
-}clients;
-
 typedef struct movement_intentions{// lista di intenzioni di movimento che si accumula il server quando le riceve e che poi sbobina per aggiornare il mondo
 	int id;
 	float rotational_force;
@@ -53,19 +60,19 @@ typedef struct movement_intentions{// lista di intenzioni di movimento che si ac
 
 // Funzione di ricezione TCP
 
-int recv_TCP(int socket, void *buf, size_t len, int flags);
+int recv_TCP(int socket, char *buf, size_t len, int flags);
 
 // Funzione di invio TCP
 
-int send_TCP(int socket, const void *buf, size_t len, int flags);
+int send_TCP(int socket, const char *buf, size_t len, int flags);
 
 // Funzione di ricezione UDP
 
-int recv_UDP(int socket, void *buf, size_t len, int flags, struct sockaddr *src_addr, socklen_t *addrlen);
+int recv_UDP(int socket, char *buf, size_t len, int flags, struct sockaddr *src_addr, socklen_t *addrlen);
 
 // Funzione di invio UDP
 
-int send_UDP(int socket, const void *buf, size_t len, int flags, const struct sockaddr *dest_addr, socklen_t addrlen);
+int send_UDP(int socket, const char *buf, size_t len, int flags, const struct sockaddr *dest_addr, socklen_t addrlen);
 
 // Funzione per eliminazione semafori
-int sem_clean(sem_t sem_utenti, sem_t sem_thread_UDP);
+//int sem_clean(sem_t sem_utenti, sem_t sem_thread_UDP);

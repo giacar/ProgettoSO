@@ -27,6 +27,7 @@ HEADERS=helpers.h\
 	vec3.h\
 	vehicle.h\
 	utils.h\
+	common.h\
 	world.h\
 	world_viewer.h\
 
