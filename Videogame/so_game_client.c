@@ -54,9 +54,9 @@ void* thread_listener_tcp(void* client_args){
 
     thread_client_args* arg = (thread_client_args*) client_args;
     int socket=arg->socket_desc_TCP;        //socket TCP
-    int id=arg->id;
-    Image* map_texture=arg->map_texture;
-    Vehicle vehicle=arg->v;
+    //int id=arg->id;
+    //Image* map_texture=arg->map_texture;
+    //Vehicle vehicle=arg->v;
 
     //Ricezione degli ImagePacket contenenti id e texture di tutti i client presenti nel mondo
     char user[DIM_BUFF];
@@ -115,9 +115,10 @@ void* thread_listener_udp_M(void* client_args){
     thread_client_args* arg = (thread_client_args*) client_args;
     int socket_UDP = arg->socket_desc_UDP_M;
     int id=arg->id;
-    Image* map_texture=arg->map_texture;
+    //Image* map_texture=arg->map_texture;
     Vehicle veicolo=arg->v;
     struct sockaddr_in server_UDP = arg->server_addr_UDP_M;
+    int slen = sizeof(server_UDP);
 
 
     /**
@@ -141,7 +142,7 @@ void* thread_listener_udp_M(void* client_args){
         char vehicle_update[DIM_BUFF];
         int vehicle_update_len = Packet_serialize(vehicle_update, &(update->header));
 
-        ret = send_UDP(socket_UDP, vehicle_update, vehicle_update_len, 0, (struct sockaddr*) server_UDP, sizeof(server_UDP));
+        ret = send_UDP(socket_UDP, vehicle_update, vehicle_update_len, 0, (struct sockaddr*) &server_UDP, slen);
         PTHREAD_ERROR_HELPER(ret, "Could not send vehicle updates to server");
 
         Packet_free(&update_head);
@@ -172,10 +173,11 @@ void* thread_listener_udp_W(void* client_args){
 
     thread_client_args* arg = (thread_client_args*) client_args;
     int socket_UDP = arg->socket_desc_UDP_W;
-    int id=arg->id;
-    Image* map_texture=arg->map_texture;
-    Vehicle vehicle=arg->v;
+    //int id=arg->id;
+    //Image* map_texture=arg->map_texture;
+    //Vehicle vehicle=arg->v;
     struct sockaddr_in server_UDP = arg->server_addr_UDP_W;
+    int slen = sizeof(server_UDP);
 
 
     /**
@@ -189,21 +191,24 @@ void* thread_listener_udp_W(void* client_args){
     //da sistemare la dimensione
 
         char world_update[DIM_BUFF];
-        int world_update_len;
+        char world_update_len[DIM_BUFF];
 
-        ret= recv_UDP(socket_UDP,world_update_len,sizeof(int),0, (struct sockaddr *) server_UDP, (socklen_t*) sizeof(struct sockaddr_in));
+        //non sappiamo quanto è grande la stringa che ci deve arrivare e che dobbiamo convertire in numero intero
+        ret= recv_UDP(socket_UDP,world_update_len, 1,0, (struct sockaddr *) &server_UDP, (socklen_t*) &slen);
         PTHREAD_ERROR_HELPER(-1, "Could not receive size of world update");
 
-        ret= recv_UDP(socket_UDP,world_update,world_update_len,0, (struct sockaddr *) server_UDP, (socklen_t*) sizeof(struct sockaddr_in));
+        int dimensione_mondo = atoi(world_update_len);
+
+        ret= recv_UDP(socket_UDP,world_update,dimensione_mondo,0, (struct sockaddr *) &server_UDP, (socklen_t*) &slen);
         PTHREAD_ERROR_HELPER(-1, "Could not receive world update");
 
 
-        world_update[world_update_len] = '\0';
-        world_update_len++;
+        world_update[dimensione_mondo] = '\0';
+        dimensione_mondo++;
 
     //estriamo il numero di veicoli e gli update di ogni veicolo
 
-        WorldUpdatePacket* wup = (WorldUpdatePacket*) Packet_deserialize(world_update, world_update_len);
+        WorldUpdatePacket* wup = (WorldUpdatePacket*) Packet_deserialize(world_update, dimensione_mondo);
         int num_vehicles = wup->num_vehicles;
         ClientUpdate* client_update = wup->updates; //VETTOREEEEEEEEE di client update
 
@@ -396,9 +401,10 @@ int main(int argc, char **argv) {
 	* [TOCOMPLETE]
 	**/
 
-  	int login_state;		// in this variabile there is the login's state
+  	char stato_login[DIM_BUFF];		// in this variabile there is the login's state
   	int user_length;
   	int pass_length;
+    int login_state;
 
     while (1) {
         printf("LOGIN\n Please enter username: ");
@@ -411,9 +417,10 @@ int main(int argc, char **argv) {
 	ret = send_TCP(socket_desc, username, user_length, 0);
 	ERROR_HELPER(ret, "Failed to send login data");
 
-	ret = recv_TCP(socket_desc, &login_state, sizeof(int), 0);
+	ret = recv_TCP(socket_desc, stato_login, 1, 0);
 	ERROR_HELPER(ret, "Failed to update login's state");
 
+    login_state = atoi(stato_login);
 
 	if (login_state) printf("\nWelcome back %s.", username);
 	else if (login_state == 0) printf("\nWelcome %s.", username);
@@ -431,8 +438,10 @@ int main(int argc, char **argv) {
 	ret = send_TCP(socket_desc, password, pass_length, 0);
 	ERROR_HELPER(ret, "Failed to send login data");
 
-	ret = recv_TCP(socket_desc, &login_state, sizeof(int), 0);
+	ret = recv_TCP(socket_desc, stato_login, 1, 0);
 	ERROR_HELPER(ret, "Failed to update login's state");
+
+    login_state = atoi(stato_login);
 
 	while (login_state == -1) {
 		printf("Incorrect Password, please insert it again: ");
@@ -443,8 +452,10 @@ int main(int argc, char **argv) {
 		ret = send_TCP(socket_desc, password, pass_length, 0);
 		ERROR_HELPER(ret, "Failed to send login data");
 
-		ret = recv_TCP(socket_desc, &login_state, sizeof(int), 0);
+		ret = recv_TCP(socket_desc, stato_login, 1, 0);
 		ERROR_HELPER(ret, "Failed to receive login's state");
+
+        login_state = atoi(stato_login);
 	}
 
 	int my_id;
@@ -469,8 +480,6 @@ int main(int argc, char **argv) {
 		ret = send_TCP(socket_desc, idPacket_request, idPacket_request_len, 0);
 		ERROR_HELPER(ret, "Could not send id request  to socket");
 
-        Packet_free(&id_head);
-
 		ret = recv_TCP(socket_desc, idPacket, sizeof(idPacket), 0);
 		ERROR_HELPER(ret, "Could not read id from socket");
 
@@ -492,7 +501,7 @@ int main(int argc, char **argv) {
 		my_texture->header.type=PostTexture;
 		my_texture->header.size=sizeof(ImagePacket);
 		my_texture->id=id->id;
-		my_texture->image=&my_texture_for_server;
+		my_texture->image=my_texture_for_server;
 
 		size_t texture_for_server_len = Packet_serialize(texture_for_server, &(my_texture->header));
 
@@ -607,7 +616,7 @@ int main(int argc, char **argv) {
 
 
 	//requesting and receving map
-	char request_texture_map_for_server;
+	char request_texture_map_for_server[DIM_BUFF];
 	char texture_map[DIM_BUFF];
 	IdPacket* request_map=(IdPacket*)malloc(sizeof(IdPacket));
 	PacketHeader request_map_head;
@@ -615,7 +624,7 @@ int main(int argc, char **argv) {
 	request_map->header.type=GetTexture;
 	request_map->header.size=sizeof(IdPacket);
 	request_map->id=my_id;
-	size_t request_texture_map_for_server_len=Packet_serialize(&request_texture_map_for_server, &(request_map->header));
+	size_t request_texture_map_for_server_len=Packet_serialize(request_texture_map_for_server, &(request_map->header));
 
 
   	ret = send_TCP(socket_desc, request_texture_map_for_server, request_texture_map_for_server_len, 0);
@@ -630,7 +639,7 @@ int main(int argc, char **argv) {
 	texture_map[msg_len] = '\0';
 	msg_len++;
 
-	ImagePacket* map = (ImagePacket*) Packet_deserialize(&texture_map,msg_len);
+	ImagePacket* map = (ImagePacket*) Packet_deserialize(texture_map,msg_len);
 	if(map->header.type!=PostTexture && map->id!=0) ERROR_HELPER(-1,"error in protocol \n");
 
 
@@ -645,7 +654,7 @@ int main(int argc, char **argv) {
 	World_init(&world, map_elevation, map_texture, 0.5, 0.5, 0.5);
 	vehicle=(Vehicle*) malloc(sizeof(Vehicle));
 	Vehicle_init(vehicle, &world, my_id, my_texture_from_server);
-	World_addVehicle(&world, v);
+	World_addVehicle(&world, vehicle);
 
 	// spawn a thread that will listen the update messages from
 	// the server, and sends back the controls
@@ -655,7 +664,7 @@ int main(int argc, char **argv) {
 	// request the texture and add the player to the pool
 	/*FILLME*/
 	thread_client_args* args=malloc(sizeof(thread_client_args));
-	args->v=vehicle;
+	args->v=*vehicle;
 	args->id=my_id;
 	args->socket_desc_TCP=socket_desc;
 	args->socket_desc_UDP_M=socket_desc_UDP_M;
