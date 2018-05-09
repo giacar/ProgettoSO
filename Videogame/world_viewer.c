@@ -10,29 +10,8 @@
 
 int window;
 
-typedef enum ViewType {Inside, Outside, Global} ViewType;
-
-typedef struct WorldViewer{
-  World* world;
-  float zoom;
-  float camera_z;
-  int window_width, window_height;
-  Vehicle* self;
-  ViewType view_type;
-} WorldViewer;
-
 WorldViewer viewer;
 
-void WorldViewer_run(WorldViewer* viewer,
-		     World* world,
-		     Vehicle* self,
-		     int* argc, char** argv);
-
-void WorldViewer_draw(WorldViewer* viewer);
-
-void WorldViewer_destroy(WorldViewer* viewer);
-
-void WorldViewer_reshapeViewport(WorldViewer* viewer, int width, int height);
 
 
 void keyPressed(unsigned char key, int x, int y)

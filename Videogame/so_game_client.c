@@ -248,7 +248,7 @@ void* thread_listener_udp_W(void* client_args){
 }
 
 
-void keyPressed(unsigned char key, int x, int y)
+/**void keyPressed(unsigned char key, int x, int y)
 {
   switch(key){
   case 27:
@@ -301,7 +301,7 @@ void specialInput(int key, int x, int y) {
 }
 
 
-void display(void) {
+/**void display(void) {
   WorldViewer_draw(&viewer);
 }
 
@@ -318,7 +318,7 @@ void idle(void) {
   // decay the commands
   vehicle->translational_force_update *= 0.999;
   vehicle->rotational_force_update *= 0.7;
-}
+}**/
 
 int main(int argc, char **argv) {
 	if (argc<3) {
