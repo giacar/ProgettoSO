@@ -7,15 +7,15 @@
 
 typedef struct clients{
 	int id;
-	int status; //1:connected 0:disconnected
+	int status; //1:connected 0:disconnected -1 NON INIZIALIZZATO
 	Image* texture;
-	struct sockadrr_in* addr; //to send data over udp socket to the client
+	struct sockaddr_in* addr; //to send data over udp socket to the client
 	int socket_TCP;  //to send data over tcp to the client(la socket ricevuta dalla accept)
 }clients;
 
 typedef struct thread_server_TCP_args{
     int socket_desc_TCP_client;
-    struct sockadrr_in* addr; //to send data over udp socket to the client
+    struct sockaddr_in* addr; //to send data over udp socket to the client
     Image* elevation_map;
     Image* map;
     clients* list;

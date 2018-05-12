@@ -8,6 +8,7 @@
 #include <errno.h>
 #include <pthread.h>
 #include <sys/socket.h>
+#include <sys/types.h>
 #include <arpa/inet.h>
 #include <netinet/in.h>
 
@@ -85,16 +86,25 @@ void* thread_listener_tcp(void* client_args){
           Image* image;
         } ImagePacket;**/
 
-        ImagePacket* client = (ImagePacket*) Packet_deserialize(user, msg_len);
-        int id = client->id;
-        if (client->image == NULL){
-            Vehicle* v = World_getVehicle(&world, id);
-            World_detachVehicle(&world, v);
-        }
-        else{
-            Vehicle* v = (Vehicle*) malloc(sizeof(Vehicle));
-            Vehicle_init(v, &world, id, client->image);
-        }
+        PacketHeader* clienth = Packet_deserialize(user, msg_len);
+        if (clienth->type==PostTexture){
+			ImagePacket* client=(ImagePacket*)clienth;
+				
+			int id = client->id;
+
+
+			Vehicle* v = (Vehicle*) malloc(sizeof(Vehicle));
+			Vehicle_init(v, &world, id, client->image);
+		}
+		else if(clienth->type==GetId){
+			IdPacket* clientd=(IdPacket*)clienth;
+			if(clientd->id>=MAX_USER_NUM);
+			else{
+				int id=clientd->id;
+				Vehicle* v = World_getVehicle(&world, id);
+				World_detachVehicle(&world, v);
+			}
+		}
     }
 
 }
@@ -132,12 +142,13 @@ void* thread_listener_udp_M(void* client_args){
     //creazione di un pacchetto di update personale da inviare al server.
         VehicleUpdatePacket* update = (VehicleUpdatePacket*) malloc(sizeof(VehicleUpdatePacket));
         PacketHeader update_head;
+        update_head.size = sizeof(VehicleUpdatePacket);
+        update_head.type = VehicleUpdate;
+        
         update->header=update_head;
         update->translational_force = veicolo.translational_force_update;
         update->rotational_force = veicolo.rotational_force_update;
         update->id = id;
-        update->header.size = sizeof(VehicleUpdatePacket);
-        update->header.type = VehicleUpdate;
 
         char vehicle_update[DIM_BUFF];
         int vehicle_update_len = Packet_serialize(vehicle_update, &(update->header));
@@ -301,7 +312,7 @@ void specialInput(int key, int x, int y) {
 }
 
 
-/**void display(void) {
+void display(void) {
   WorldViewer_draw(&viewer);
 }
 
@@ -408,7 +419,7 @@ int main(int argc, char **argv) {
 
     while (1) {
         printf("LOGIN\n Please enter username: ");
-        scanf("%s", username);
+        ret = scanf("%s", username);
         user_length = strlen(username);
         if (user_length > 64) printf("ERROR! username too length, please retry.");
         else break;
@@ -431,7 +442,7 @@ int main(int argc, char **argv) {
 	}
 
 	printf(" Please enter password: ");
-	scanf("%s", password);
+	ret = scanf("%s", password);
 	printf("\n");
 	pass_length = strlen(password);
 
@@ -445,7 +456,7 @@ int main(int argc, char **argv) {
 
 	while (login_state == -1) {
 		printf("Incorrect Password, please insert it again: ");
-		scanf("%s", password);
+		ret = scanf("%s", password);
 		printf("\n");
 		pass_length = strlen(password);
 
@@ -458,8 +469,8 @@ int main(int argc, char **argv) {
         login_state = atoi(stato_login);
 	}
 
-	int my_id;
-	Image* my_texture_from_server;
+	int my_id = -2;
+	Image* my_texture_from_server = NULL;
     size_t msg_len;                 //utile dichiararla qui, visto che andrà usata in ogni caso
 
 	if (login_state == 0){
