@@ -406,6 +406,7 @@ int main(int argc, char **argv) {
 	ret = bind(socket_desc_UDP_W, (struct sockaddr*) &server_addr_UDP_W, sizeof(struct sockaddr_in));
 	ERROR_HELPER(ret, "Could not connect to socket (udp bind W)");
 
+
 	/**LOGIN**/
 	/** Client inserisce username e password appena si connette:
 	*   -se utente non esiste allora i dati che ha inserito vengono usati per registrare l'utente
@@ -419,18 +420,25 @@ int main(int argc, char **argv) {
     int login_state;
 
     while (1) {
-        printf("LOGIN\n Please enter username: ");
+        printf("LOGIN\nPlease enter username: ");
         ret = scanf("%s", username);
+        if (DEBUG) printf("[LOGIN] scanf fatta: %s\n", username);
         user_length = strlen(username);
-        if (user_length > 64) printf("ERROR! username too length, please retry.");
+        if (user_length > 64) printf("ERROR! username too length, please retry.\n");
         else break;
     }
 
-	ret = send_TCP(socket_desc, username, user_length, 0);
+    if (DEBUG) printf("[LOGIN] username inserito\n");
+
+	ret = send_TCP(socket_desc, username, user_length++, 0);
 	ERROR_HELPER(ret, "Failed to send login data");
+
+	if (DEBUG) printf("[LOGIN] username INVIATO\n");
 
 	ret = recv_TCP(socket_desc, stato_login, 1, 0);
 	ERROR_HELPER(ret, "Failed to update login's state");
+
+	if (DEBUG) printf("[LOGIN] login state per username ricevuto\n");
 
     login_state = atoi(stato_login);
 
@@ -445,13 +453,18 @@ int main(int argc, char **argv) {
 	printf(" Please enter password: ");
 	ret = scanf("%s", password);
 	printf("\n");
+	if (DEBUG) printf("[LOGIN] scanf fatta: %s\n", password);
 	pass_length = strlen(password);
 
 	ret = send_TCP(socket_desc, password, pass_length, 0);
 	ERROR_HELPER(ret, "Failed to send login data");
 
+	if (DEBUG) printf("[LOGIN] password INVIATA\n");
+
 	ret = recv_TCP(socket_desc, stato_login, 1, 0);
 	ERROR_HELPER(ret, "Failed to update login's state");
+
+	if (DEBUG) printf("[LOGIN] login state per password ricevuta\n");
 
     login_state = atoi(stato_login);
 
@@ -464,8 +477,12 @@ int main(int argc, char **argv) {
 		ret = send_TCP(socket_desc, password, pass_length, 0);
 		ERROR_HELPER(ret, "Failed to send login data");
 
+		if (DEBUG) printf("[LOGIN] Nuova password inviata\n");;
+
 		ret = recv_TCP(socket_desc, stato_login, 1, 0);
 		ERROR_HELPER(ret, "Failed to receive login's state");
+
+		if (DEBUG) printf("[LOGIN] login state della password ricevuto\n");;
 
         login_state = atoi(stato_login);
 	}
@@ -500,7 +517,7 @@ int main(int argc, char **argv) {
         msg_len++;
 
 		IdPacket* id = (IdPacket*) Packet_deserialize(idPacket, msg_len);
-		if(id->header.type!=GetId) ERROR_HELPER(-1,"Error in packet type \n");
+		if (id->header.type!=GetId) ERROR_HELPER(-1,"Error in packet type \n");
 
 
 		// sending my texture

@@ -32,6 +32,7 @@ Please see the [DOCUMENTATION.md](Documentation.md) file for details
 
 * Login system implementation
 * TCP-side implementation
+* UDP-side implementation
 
 ## To Do
 
@@ -45,8 +46,8 @@ Please see the [DOCUMENTATION.md](Documentation.md) file for details
 
 * <s>Login system implementation</s>
 * <s>TCP-side implementation</s>
-* UDP-side implementation
+* <s>UDP-side implementation</s>
 
 ## Test and Bugs
 
-Test phase to discover bugs will start as soon as coding phase finish.
+* BUG nella ricezione dell'username nel server

@@ -6,9 +6,10 @@
 #include <netinet/in.h>
 
 #include "utils.h"
+#include "common.h"
 
 int recv_TCP(int socket, char *buf, size_t len, int flags) {
-	int ret, bytes_read = 0;
+	int ret, bytes_read = 0, finito = 0;
 
 	// Ricezione conoscendo la dimensione (len > 1)
 
@@ -31,9 +32,11 @@ int recv_TCP(int socket, char *buf, size_t len, int flags) {
 
 	else {
 
-		while (1) {
+		while (!finito) {
 
-			ret = recv(socket, buf+bytes_read, len, flags);
+			ret = recv(socket, buf+bytes_read, 1, flags);
+
+			if (DEBUG) printf("[RECV_TCP] Ho ricevuto byte\n");
 
 			if (errno == EINTR) continue;
 			if (errno == ENOTCONN) {
@@ -41,10 +44,10 @@ int recv_TCP(int socket, char *buf, size_t len, int flags) {
 				return -2;
 			}
 
-			if (buf[bytes_read] == '\n' || buf[bytes_read] == '\0'/* DA CONTROLLARE LA CORRETTEZZA */) {
-				buf[bytes_read] = '\0';
+			if (buf[bytes_read] == '\n' || buf[bytes_read] == '\0') {
+				if (DEBUG) printf("[RECV_TCP] Fine stringa\n");
 				bytes_read++;
-				break;
+				finito = 1;
 			}
 
 			bytes_read++;
@@ -59,9 +62,9 @@ int recv_TCP(int socket, char *buf, size_t len, int flags) {
 }
 
 int send_TCP(int socket, const char *buf, size_t len, int flags) {
-	int ret, bytes_sent = 0;
+	int ret, bytes_sent = 0, finito = 0;
 
-	while (1) {
+	while (!finito) {
 
 		ret = send(socket, buf+bytes_sent, len-bytes_sent, flags);
 
@@ -77,7 +80,7 @@ int send_TCP(int socket, const char *buf, size_t len, int flags) {
 
 		bytes_sent += ret;
 
-		if (bytes_sent == len) break;
+		if (bytes_sent == len) finito = 1;
 
 	}
 

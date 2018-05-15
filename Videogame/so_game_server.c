@@ -49,7 +49,7 @@ void* thread_server_TCP(void* args){
 
     int ret;
 
-    //implementare protoccollo login e aggiungere il nuovo client al mondo ed alla lista dei client connessi
+    //implementare protocollo login e aggiungere il nuovo client al mondo ed alla lista dei client connessi
     thread_server_TCP_args *arg = (thread_server_TCP_args *)args;
     int socket=arg->socket_desc_TCP_client;
     Image* elevation_map = arg->elevation_map;      //elevation map
