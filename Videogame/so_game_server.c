@@ -788,9 +788,9 @@ int main(int argc, char **argv) {
     ERROR_HELPER(server_socket_UDP_W,"error creating socket UDP \n");
 
     // faccio la bind
-
+    /*
     ret=bind(server_socket_UDP_W,(struct sockaddr*) &server_addr_UDP_W,sizeof(struct sockaddr_in));
-    ERROR_HELPER(ret,"error binding socket  UDP \n");
+    ERROR_HELPER(ret,"error binding socket  UDP \n");*/
 
     //creo i thread che si occuperanno di ricevere le forze dai vari client e di inviare un world update packet a tutti i client (UDP)
 

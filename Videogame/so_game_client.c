@@ -388,8 +388,9 @@ int main(int argc, char **argv) {
 	server_addr_UDP_M.sin_family = AF_INET;
 	server_addr_UDP_M.sin_port = htons(SERVER_PORT_UDP_M);
 	//bind UDP socket
+	/*
 	ret = bind(socket_desc_UDP_M, (struct sockaddr*) &server_addr_UDP_M, sizeof(struct sockaddr_in));
-	ERROR_HELPER(ret, "Could not connect to socket (udp)");
+	ERROR_HELPER(ret, "Could not connect to socket (udp bind M)");*/
 
 	//variable for UDP_W socket
 	int socket_desc_UDP_W;
@@ -403,7 +404,7 @@ int main(int argc, char **argv) {
 	server_addr_UDP_W.sin_port = htons(SERVER_PORT_UDP_W);
 	//bind UDP socket
 	ret = bind(socket_desc_UDP_W, (struct sockaddr*) &server_addr_UDP_W, sizeof(struct sockaddr_in));
-	ERROR_HELPER(ret, "Could not connect to socket (udp)");
+	ERROR_HELPER(ret, "Could not connect to socket (udp bind W)");
 
 	/**LOGIN**/
 	/** Client inserisce username e password appena si connette:
