@@ -21,7 +21,7 @@ int recv_TCP(int socket, char *buf, size_t len, int flags) {
 
 		} while (ret == -1 && errno == EINTR);
 
-		if (errno == ENOTCONN) {
+		if (ret == -1 && errno == ENOTCONN) {
 			printf("Connection closed. ");
 			return -2;
 		}

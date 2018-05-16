@@ -150,6 +150,16 @@ void* thread_server_TCP(void* args){
         }
         else PTHREAD_ERROR_HELPER(ret, "Failed to read password from client");
 
+        login_reply = 0;
+        sprintf(risposta_login, "%d", login_reply);
+
+        ret = send_TCP(socket, risposta_login, strlen(risposta_login)+1, 0);
+        if (ret == -2) {
+            printf("Could not send login_reply to client\n");
+            pthread_exit(NULL);
+        }
+        else PTHREAD_ERROR_HELPER(ret, "Failed to send login_reply to client");
+
         if (DEBUG) {
             int value;
             ret = sem_getvalue(&sem_utenti, &value);
@@ -245,6 +255,8 @@ void* thread_server_TCP(void* args){
 
     if (login_status == 0){
 
+        if (DEBUG) printf("[IDPACKET] Sono entrato nel <if (login_status == 0)>\n");
+
         char idPacket[DIM_BUFF];
 
         ret = recv_TCP(socket, idPacket, sizeof(idPacket)+1, 0);
@@ -254,11 +266,13 @@ void* thread_server_TCP(void* args){
         }
         PTHREAD_ERROR_HELPER(ret, "Could not receive id request from client");
 
-        size_t msg_len = ret;
-        idPacket[msg_len] = '\0';
-        msg_len++;
+        if (DEBUG) printf("[IDPACKET] Ho ricevuto idPacket request dal client\n");
 
-        IdPacket* id = (IdPacket*) Packet_deserialize(idPacket, msg_len);
+        size_t msg_len = ret-1;
+        /*idPacket[msg_len] = '\0';
+        msg_len++;*/ // Ho messo nel client lo '\0'
+
+        IdPacket* id = (IdPacket*) Packet_deserialize(idPacket, msg_len+1);
         if (id->header.type != GetId) PTHREAD_ERROR_HELPER(-1, "Error in packet type (client id)");
 
         if (id->id == -1){
@@ -266,7 +280,9 @@ void* thread_server_TCP(void* args){
             size_t idPacket_response_len;
             idPacket_response_len = Packet_serialize(idPacket, &(id->header));
 
-            ret = send_TCP(socket, idPacket, idPacket_response_len, 0);
+            idPacket[idPacket_response_len] = '\0';
+
+            ret = send_TCP(socket, idPacket, idPacket_response_len+1, 0);
             if (ret == -2){
                 printf("Could not send id response to client\n");
                 pthread_exit(NULL);
@@ -284,18 +300,18 @@ void* thread_server_TCP(void* args){
 
         char texture_utente[DIM_BUFF];
 
-        ret = recv_TCP(socket, texture_utente, sizeof(ImagePacket), 0);
+        ret = recv_TCP(socket, texture_utente, sizeof(ImagePacket)+1, 0);
         if (ret == -2){
             printf("Could not receive client texture\n");
             pthread_exit(NULL);
         }
         PTHREAD_ERROR_HELPER(ret, "Could not receive client texture");
 
-        msg_len = ret;
-        texture_utente[msg_len] = '\0';
-        msg_len++;
+        msg_len = ret-1;
+        /*texture_utente[msg_len] = '\0';
+        msg_len++;*/ // Ho aggiunto '\0' nel client
 
-        ImagePacket* client_texture = (ImagePacket*) Packet_deserialize(texture_utente, msg_len);
+        ImagePacket* client_texture = (ImagePacket*) Packet_deserialize(texture_utente, msg_len+1);
         if (client_texture->header.type!=PostTexture) PTHREAD_ERROR_HELPER(-1, "Error in client texture packet!");
 
         client[idx].id = idx;

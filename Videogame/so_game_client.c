@@ -503,12 +503,19 @@ int main(int argc, char **argv) {
 		char idPacket_request[DIM_BUFF];
 		char idPacket[DIM_BUFF];
 		size_t idPacket_request_len = Packet_serialize(idPacket_request,&(request_id->header));
+		idPacket_request[idPacket_request_len] = '\0';
 
-		ret = send_TCP(socket_desc, idPacket_request, idPacket_request_len, 0);
+		if (DEBUG) printf("[IDPACKET] Sto per mandare idPacket\n");
+
+		ret = send_TCP(socket_desc, idPacket_request, idPacket_request_len+1, 0);
 		ERROR_HELPER(ret, "Could not send id request  to socket");
 
-		ret = recv_TCP(socket_desc, idPacket, sizeof(idPacket), 0);
+		if (DEBUG) printf("[IDPACKET] idPacket richiesto\n");
+
+		ret = recv_TCP(socket_desc, idPacket, sizeof(idPacket)+1, 0);
 		ERROR_HELPER(ret, "Could not read id from socket");
+
+		if (DEBUG) printf("[IDPACKET] idPacket ricevuto\n");
 
 		msg_len=ret;
 		idPacket[msg_len] = '\0';
