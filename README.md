@@ -51,4 +51,5 @@ Please see the [DOCUMENTATION.md](Documentation.md) file for details
 ## Test and Bugs
 
 * <s>BUG nella registrazione dell'username e password nel server</s>
-* BUG nella parte successiva di richiesta ID
+* <s>BUG nella parte successiva di richiesta ID</s>
+* BUG Errore di segmentazione nel server dopo la deserializzazione dell'idPacket

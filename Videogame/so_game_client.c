@@ -517,13 +517,14 @@ int main(int argc, char **argv) {
 
 		if (DEBUG) printf("[IDPACKET] idPacket ricevuto\n");
 
-		msg_len=ret;
-		idPacket[msg_len] = '\0';
-        msg_len++;
+		msg_len=ret-1;
+		/*idPacket[msg_len] = '\0';
+        msg_len++;      Ho messo nel sever lo '\0' */
 
 		IdPacket* id = (IdPacket*) Packet_deserialize(idPacket, msg_len);
 		if (id->header.type!=GetId) ERROR_HELPER(-1,"Error in packet type \n");
 
+        if (DEBUG) printf("[IDPACKET] idPacket deserializzato\n");
 
 		// sending my texture
 		char texture_for_server[DIM_BUFF];
@@ -538,25 +539,31 @@ int main(int argc, char **argv) {
 		my_texture->image=my_texture_for_server;
 
 		size_t texture_for_server_len = Packet_serialize(texture_for_server, &(my_texture->header));
+        texture_for_server[texture_for_server_len] = '\0';
 
-		ret = send_TCP(socket_desc, texture_for_server, texture_for_server_len, 0);
+		ret = send_TCP(socket_desc, texture_for_server, texture_for_server_len+1, 0);
 		ERROR_HELPER(ret, "Could not send my texture for server");
 
-        Packet_free(&img_head);
+        if (DEBUG) printf("[TEXTURE] texture_for_server inviata\n");
+
+        //Packet_free(&img_head); non serve in quanto allocato staticamente
 
 		// receving my texture from server
 
 		char my_texture_server[DIM_BUFF];
 
-		ret = recv_TCP(socket_desc, my_texture_server, sizeof(ImagePacket), 0);
+		ret = recv_TCP(socket_desc, my_texture_server, sizeof(ImagePacket)+1, 0);
 		ERROR_HELPER(ret, "Could not read my texture from socket");
 
-		msg_len=ret;
-		my_texture_server[msg_len] = '\0';
-        msg_len++;
+        if (DEBUG) printf("[TEXTURE] my_texture_server ricevuta\n");
+
+		msg_len=ret-1;
+		/*my_texture_server[msg_len] = '\0';
+        msg_len++;      Ho messo lo '\0' nel server */
 
 		ImagePacket* my_texture_received = (ImagePacket*) Packet_deserialize(my_texture_server,msg_len);
-		if(my_texture_received!=my_texture) ERROR_HELPER(-1,"error in communication: texture not matching! \n");
+		/* Potrebbe dare problemi: confronta gli indirizzi a cui puntano e non il contenuto
+        if(my_texture_received!=my_texture) ERROR_HELPER(-1,"error in communication: texture not matching! \n");*/
 
 		// these come from the server
 		my_id = id->id;
@@ -583,18 +590,19 @@ int main(int argc, char **argv) {
 		char request_texture_for_server[DIM_BUFF];
 		char my_texture[DIM_BUFF];
 		size_t request_texture_len =Packet_serialize(request_texture_for_server, &(request_texture->header));
+        request_texture_for_server[request_texture_len] = '\0';
 
-		ret = send_TCP(socket_desc, request_texture_for_server, request_texture_len, 0);
+		ret = send_TCP(socket_desc, request_texture_for_server, request_texture_len+1, 0);
 		ERROR_HELPER(ret, "Could not send my texture for server");
 
-        Packet_free(&request_texture_head);
+        //Packet_free(&request_texture_head);
 
-		ret = recv_TCP(socket_desc, my_texture,sizeof(ImagePacket), 0);
+		ret = recv_TCP(socket_desc, my_texture,sizeof(ImagePacket)+1, 0);
 		ERROR_HELPER(ret, "Could not read my texture from socket");
 
-		msg_len=ret;
-		my_texture[msg_len] = '\0';
-		msg_len++;
+		msg_len=ret-1;
+		/*my_texture[msg_len] = '\0';
+		msg_len++;        Ho messo '\0' nel server */
 
 		ImagePacket* my_texture_received = (ImagePacket*) Packet_deserialize(my_texture,msg_len);
 		if(my_texture_received->header.type!=PostTexture && my_texture_received->id==0) ERROR_HELPER(-1,"error in communication \n");
@@ -615,7 +623,7 @@ int main(int argc, char **argv) {
   	/**
   	Se il client è un nuovo utente manderà la richiesta dell'id al server con un IdPacket col campo id settato a -1. Altrimenti, quel campo id sarà settato
   	al suo id che aveva prima di disconnettersi. Tutto ciò serve per far capire al server da dove deve estrapolare la texture: se id = -1 allora riceve la
-  	texture dal client e gliela reinvia. Altrimenti, lui la prende dalla sua cella di client_connected (o disconnected //DA DEFINIRE!) e gliela reinvia.
+  	texture dal client e gliela reinvia. Altrimenti, lui la prende dalla sua cella di clients e gliela reinvia.
 	**/
 
 
@@ -632,19 +640,20 @@ int main(int argc, char **argv) {
 	char request_elevation_for_server[DIM_BUFF];
 	char elevation_map[DIM_BUFF];
 	size_t request_elevation_len =Packet_serialize(request_elevation_for_server, &(request_elevation->header));
+    request_elevation_for_server[request_elevation_len] = '\0';
 
 
-	ret = send_TCP(socket_desc, request_elevation_for_server, request_elevation_len, 0);
+	ret = send_TCP(socket_desc, request_elevation_for_server, request_elevation_len+1, 0);
 	ERROR_HELPER(ret, "Could not send my texture for server");
 
-    Packet_free(&request_elevation_head);
+    //Packet_free(&request_elevation_head);
 
-	ret = recv_TCP(socket_desc, elevation_map,sizeof(ImagePacket), 0);
+	ret = recv_TCP(socket_desc, elevation_map,sizeof(ImagePacket)+1, 0);
 	ERROR_HELPER(ret, "Could not read elevation map from socket");
 
-	msg_len=ret;
-	elevation_map[msg_len] = '\0';
-	msg_len++;
+	msg_len=ret-1;
+	/*elevation_map[msg_len] = '\0';
+	msg_len++;*/
 	ImagePacket* elevation = (ImagePacket*) Packet_deserialize(elevation_map,msg_len);
 	if(elevation->header.type!=PostElevation && elevation->id!=0) ERROR_HELPER(-1,"error in communication \n");
 
@@ -659,19 +668,20 @@ int main(int argc, char **argv) {
 	request_map->header.size=sizeof(IdPacket);
 	request_map->id=my_id;
 	size_t request_texture_map_for_server_len=Packet_serialize(request_texture_map_for_server, &(request_map->header));
+    request_texture_map_for_server[request_texture_map_for_server_len] = '\0';
 
 
-  	ret = send_TCP(socket_desc, request_texture_map_for_server, request_texture_map_for_server_len, 0);
+  	ret = send_TCP(socket_desc, request_texture_map_for_server, request_texture_map_for_server_len+1, 0);
   	ERROR_HELPER(ret, "Could not send my texture for server");
 
-    Packet_free(&request_map_head);
+    //Packet_free(&request_map_head);
 
   	ret = recv_TCP(socket_desc, texture_map, sizeof(ImagePacket), 0);
   	ERROR_HELPER(ret, "Could not read map texture from socket");
 
-	msg_len=ret;
-	texture_map[msg_len] = '\0';
-	msg_len++;
+	msg_len=ret-1;
+	/*texture_map[msg_len] = '\0';
+	msg_len++;*/
 
 	ImagePacket* map = (ImagePacket*) Packet_deserialize(texture_map,msg_len);
 	if(map->header.type!=PostTexture && map->id!=0) ERROR_HELPER(-1,"error in protocol \n");
