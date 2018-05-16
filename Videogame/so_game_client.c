@@ -337,9 +337,7 @@ int main(int argc, char **argv) {
 		exit(-1);
 	}
 
-
-
-
+    if (DEBUG) printf("DEBUG MODE\n");
 
 	printf("loading texture image from %s ... ", argv[2]);
 	Image* my_texture = Image_load(argv[2]);
@@ -430,7 +428,7 @@ int main(int argc, char **argv) {
 
     if (DEBUG) printf("[LOGIN] username inserito\n");
 
-	ret = send_TCP(socket_desc, username, user_length++, 0);
+	ret = send_TCP(socket_desc, username, user_length+1, 0);
 	ERROR_HELPER(ret, "Failed to send login data");
 
 	if (DEBUG) printf("[LOGIN] username INVIATO\n");
@@ -456,7 +454,7 @@ int main(int argc, char **argv) {
 	if (DEBUG) printf("[LOGIN] scanf fatta: %s\n", password);
 	pass_length = strlen(password);
 
-	ret = send_TCP(socket_desc, password, pass_length, 0);
+	ret = send_TCP(socket_desc, password, pass_length+1, 0);
 	ERROR_HELPER(ret, "Failed to send login data");
 
 	if (DEBUG) printf("[LOGIN] password INVIATA\n");
@@ -474,7 +472,7 @@ int main(int argc, char **argv) {
 		printf("\n");
 		pass_length = strlen(password);
 
-		ret = send_TCP(socket_desc, password, pass_length, 0);
+		ret = send_TCP(socket_desc, password, pass_length+1, 0);
 		ERROR_HELPER(ret, "Failed to send login data");
 
 		if (DEBUG) printf("[LOGIN] Nuova password inviata\n");;

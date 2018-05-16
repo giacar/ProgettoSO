@@ -47,7 +47,7 @@ offline_client, e poi si mette a NULL la sua cella in online_client.
 
 void* thread_server_TCP(void* args){
 
-    int ret;
+    int ret, i;
 
     //implementare protocollo login e aggiungere il nuovo client al mondo ed alla lista dei client connessi
     thread_server_TCP_args *arg = (thread_server_TCP_args *)args;
@@ -75,17 +75,26 @@ void* thread_server_TCP(void* args){
     }
     else PTHREAD_ERROR_HELPER(ret, "Failed to read username from client");
 
+    if (DEBUG) {
+        int value;
+        ret = sem_getvalue(&sem_utenti, &value);
+        printf("[LOGIN] Valore semaforo prima della wait = %d\n", value);
+    }
+
     ret = sem_wait(&sem_utenti);
     ERROR_HELPER(ret, "Error in sem_utenti wait");
-	
-	int i;
+
+    if (DEBUG) printf("[LOGIN] Controllo se già registrato\n");
+
 	// Verifico se user già registrato
 	int idx = -1;
-	for ( i = 0; strlen(utenti[i].username)>0; i++) {
-		if (!strcmp(user_att,utenti[i].username)) {
+	for (i = 0; strlen(utenti[i].username)>0; i++) {
+		if (strcmp(user_att,utenti[i].username) == 0) {
 			idx = i;
 		}
 	}
+
+    if (DEBUG) printf("[LOGIN] Fine Controllo\n");
 
 	// Nuovo user
 	if (idx == -1) {
@@ -110,11 +119,17 @@ void* thread_server_TCP(void* args){
 		ret = sem_post(&sem_utenti);
 		ERROR_HELPER(ret, "Error in sem_utenti post");
 
+        if (DEBUG) {
+            int value;
+            ret = sem_getvalue(&sem_utenti, &value);
+            printf("[LOGIN] Valore semaforo dopo post in seguito a registrazione utente = %d\n", value);
+        }
+
 		// informo il client che è un nuovo user o che gli slot sono terminati
 
         sprintf(risposta_login, "%d", login_reply);
 
-        ret = send_TCP(socket, risposta_login, strlen(risposta_login), 0);
+        ret = send_TCP(socket, risposta_login, strlen(risposta_login)+1, 0);
         if (ret == -2) {
             printf("Could not send login_reply to client\n");
             pthread_exit(NULL);
@@ -135,7 +150,11 @@ void* thread_server_TCP(void* args){
         }
         else PTHREAD_ERROR_HELPER(ret, "Failed to read password from client");
 
-
+        if (DEBUG) {
+            int value;
+            ret = sem_getvalue(&sem_utenti, &value);
+            printf("[LOGIN] Valore semaforo prima di wait per registrazione password = %d\n", value);
+        }
 
 		// registrazione password ed id
 		ret = sem_wait(&sem_utenti);
@@ -143,9 +162,16 @@ void* thread_server_TCP(void* args){
 
 		strcpy(utenti[idx].password,pass_att);
 
+        if (DEBUG) printf("[LOGIN] Ho salvato la password\n");
 
 		ret = sem_post(&sem_utenti);
         ERROR_HELPER(ret, "Error in sem_utenti post: failed to register username & password");
+
+        if (DEBUG) {
+            int value;
+            ret = sem_getvalue(&sem_utenti, &value);
+            printf("[LOGIN] Valore semaforo alla fine del login = %d\n", value);
+        }
 
 		
 	}
@@ -163,7 +189,7 @@ void* thread_server_TCP(void* args){
 
         sprintf(risposta_login, "%d", login_reply);
 
-        ret = send_TCP(socket, risposta_login, strlen(risposta_login), 0);
+        ret = send_TCP(socket, risposta_login, strlen(risposta_login)+1, 0);
         if (ret == -2) {
             printf("Could not send login_reply to client\n");
             pthread_exit(NULL);
@@ -186,7 +212,7 @@ void* thread_server_TCP(void* args){
 
                 sprintf(risposta_login, "%d", login_reply);
 
-                ret = send_TCP(socket, risposta_login, strlen(risposta_login), 0);
+                ret = send_TCP(socket, risposta_login, strlen(risposta_login)+1, 0);
                 if (ret == -2) {
                     printf("Could not send login_reply to client\n");
                     pthread_exit(NULL);
@@ -205,7 +231,7 @@ void* thread_server_TCP(void* args){
                 }
                 else PTHREAD_ERROR_HELPER(ret, "Failed to send login_reply to client");
 			}
-		} while (strcmp(pass_att,pass_giusta));
+		} while (strcmp(pass_att,pass_giusta) != 0);
 
 
 
@@ -221,7 +247,7 @@ void* thread_server_TCP(void* args){
 
         char idPacket[DIM_BUFF];
 
-        ret = recv_TCP(socket, idPacket, sizeof(idPacket), 0);
+        ret = recv_TCP(socket, idPacket, sizeof(idPacket)+1, 0);
         if (ret == -2){
             printf("Could not receive id request from client\n");
             pthread_exit(NULL);
@@ -563,7 +589,7 @@ void* thread_server_UDP_sender(void* args){
     int ret, socket = 0;
     char msg[DIM_BUFF];
 
-    PacketHeader head;
+    PacketHeader* head = (PacketHeader*)malloc(sizeof(PacketHeader));
 
 
     //bisogna estrapolare il veicolo identificato dall'id, aggiornarlo basandoci sulle nuove forze applicate, e infilarlo dentro il world_update_packet
@@ -602,9 +628,9 @@ void* thread_server_UDP_sender(void* args){
 		}
 
 		WorldUpdatePacket* worldup=(WorldUpdatePacket*)malloc(sizeof(WorldUpdatePacket));
-		head.type=WorldUpdate;
-		head.size=sizeof(WorldUpdatePacket)+num_connected*sizeof(ClientUpdate);
-		worldup->header=head;
+		head->type=WorldUpdate;
+		head->size=sizeof(WorldUpdatePacket)+num_connected*sizeof(ClientUpdate);
+		memcpy(&(worldup->header), head, sizeof(PacketHeader)); //worldup->header=head;
 		worldup->num_vehicles=num_connected;
 		worldup->updates=update;
 
@@ -627,7 +653,7 @@ void* thread_server_UDP_sender(void* args){
         //faccio la free delle strutture dati che non mi servono più (tanto verranno ricreate alla prossima ciclata)
 
         free(update);
-        Packet_free(&head);
+        Packet_free(head);
 
         //sblocco il semaforo
 
@@ -691,6 +717,9 @@ int main(int argc, char **argv) {
         printf("usage: %s <elevation_image> <texture_image>\n", argv[1]);
         exit(-1);
     }
+
+    if (DEBUG) printf("DEBUG MODE\n");
+
     char* elevation_filename=argv[1];
     char* texture_filename=argv[2];
     char* vehicle_texture_filename="./images/arrow-right.ppm";
@@ -732,10 +761,10 @@ int main(int argc, char **argv) {
 
 	// inizializzo i semafori di mutex per tabella utenti e per num_online
 
-	ret = sem_init(&sem_utenti, 1, 0);
+	ret = sem_init(&sem_utenti, 0, 1);
 	ERROR_HELPER(ret, "Failed to initialization of sem_utenti");
 
-    ret = sem_init(&sem_online, 1, 0);
+    ret = sem_init(&sem_online, 0, 1);
     ERROR_HELPER(ret, "Failed to initialization of sem_online");
 
 	// inizializzo array di utenti
@@ -794,7 +823,7 @@ int main(int argc, char **argv) {
 
     //creo i thread che si occuperanno di ricevere le forze dai vari client e di inviare un world update packet a tutti i client (UDP)
 
-    ret = sem_init(&sem_thread_UDP, 1, 0);
+    ret = sem_init(&sem_thread_UDP, 0, 1);
 	ERROR_HELPER(ret, "Failed to initialization of sem_thread_UDP");
 
 

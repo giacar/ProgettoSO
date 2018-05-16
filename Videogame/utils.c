@@ -31,9 +31,8 @@ int recv_TCP(int socket, char *buf, size_t len, int flags) {
 	// Ricezione non conoscendo la dimensione (len == 1)
 
 	else {
-
+		
 		while (!finito) {
-
 			ret = recv(socket, buf+bytes_read, 1, flags);
 
 			if (DEBUG) printf("[RECV_TCP] Ho ricevuto byte\n");
@@ -46,16 +45,13 @@ int recv_TCP(int socket, char *buf, size_t len, int flags) {
 
 			if (buf[bytes_read] == '\n' || buf[bytes_read] == '\0') {
 				if (DEBUG) printf("[RECV_TCP] Fine stringa\n");
-				bytes_read++;
 				finito = 1;
 			}
 
 			bytes_read++;
-
 		}
-
 		ret = bytes_read;
-
+		
 	}
 
 	return ret;

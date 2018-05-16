@@ -50,4 +50,5 @@ Please see the [DOCUMENTATION.md](Documentation.md) file for details
 
 ## Test and Bugs
 
-* BUG nella ricezione dell'username nel server
+* <s>BUG nella registrazione dell'username e password nel server</s>
+* BUG nella parte successiva di richiesta ID
