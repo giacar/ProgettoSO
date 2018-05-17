@@ -259,8 +259,8 @@ void* thread_listener_udp_W(void* client_args){
 
     }
 
-    free(World_update);
-    free(World_update_len);
+    free(world_update);
+    free(world_update_len);
 
     /**uscire dal while, significa che il client si sta disconnettendo. Il server deve salvare il suo stato da qualche parte, per ripristinarlo più avanti
        se il client si connetterà ancora**/
@@ -587,13 +587,13 @@ int main(int argc, char **argv) {
 		/* Potrebbe dare problemi: confronta gli indirizzi a cui puntano e non il contenuto
         if(my_texture_received!=my_texture) ERROR_HELPER(-1,"error in communication: texture not matching! \n");*/
 
-        if (DEBUG) printf("[TEXTURE] Texture deserializzata. Aggiorno i miei parametri id e texture\n");
+        if (DEBUG) printf("[CLIENT] Texture deserializzata. Aggiorno i miei parametri id e texture\n");
 
 		// these come from the server
 		my_id = id->id;
 		my_texture_from_server = my_texture_received->image;
 
-        if (DEBUG) printf("[TEXTURE] Parametri aggiornati\n");
+        if (DEBUG) printf("[CLIENT] Parametri aggiornati\n");
 
 
 	}
@@ -652,6 +652,7 @@ int main(int argc, char **argv) {
   	texture dal client e gliela reinvia. Altrimenti, lui la prende dalla sua cella di clients e gliela reinvia.
 	**/
 
+    if (DEBUG) printf("[ELEVATION_MAP] Faccio la richiesta di elevation_map\n");
 
 
 
@@ -663,19 +664,31 @@ int main(int argc, char **argv) {
 	request_elevation->header.size=sizeof(IdPacket);
 	request_elevation->header.type=GetElevation;
 
+    if (DEBUG) printf("[ELEVATION_MAP] Pacchetto richiesta elevation_map creato\n");
+
 	char request_elevation_for_server[DIM_BUFF];
 	char elevation_map[DIM_BUFF];
+
+    if (DEBUG) printf("[ELEVATION_MAP] Serializzo il pacchetto\n");
+
 	size_t request_elevation_len =Packet_serialize(request_elevation_for_server, &(request_elevation->header));
     request_elevation_for_server[request_elevation_len] = '\0';
 
+    if (DEBUG) printf("[ELEVATION_MAP] Pacchetto serializzato\n");
 
 	ret = send_TCP(socket_desc, request_elevation_for_server, request_elevation_len+1, 0);
 	ERROR_HELPER(ret, "Could not send my texture for server");
 
+    if (DEBUG) printf("[ELEVATION_MAP] Pacchetto di richiesta inviato\n");
+
     //Packet_free(&request_elevation_head);
 
-	ret = recv_TCP(socket_desc, elevation_map,sizeof(ImagePacket)+1, 0);
+    if (DEBUG) printf("[ELEVATION_MAP] Attendo il pacchetto di elevation_map dal server\n");
+
+	ret = recv_TCP(socket_desc, elevation_map,sizeof(elevation_map)+1, 0);
 	ERROR_HELPER(ret, "Could not read elevation map from socket");
+
+    if (DEBUG) printf("[ELEVATION_MAP] Pacchetto ricevuto, deserializzo\n");
 
 	msg_len=ret-1;
 	/*elevation_map[msg_len] = '\0';
@@ -683,27 +696,42 @@ int main(int argc, char **argv) {
 	ImagePacket* elevation = (ImagePacket*) Packet_deserialize(elevation_map,msg_len);
 	if(elevation->header.type!=PostElevation && elevation->id!=0) ERROR_HELPER(-1,"error in communication \n");
 
+    if (DEBUG) printf("[ELEVATION_MAP] Pacchetto deserializzato\n");
 
 	//requesting and receving map
+
+    if (DEBUG) printf("[MAP] Richiedo la mappa al server\n");
+
 	char request_texture_map_for_server[DIM_BUFF];
 	char texture_map[DIM_BUFF];
+
+    if (DEBUG) printf("[MAP] Creo il pacchetto di richiesta\n");
+
 	IdPacket* request_map=(IdPacket*)malloc(sizeof(IdPacket));
 	PacketHeader request_map_head;
 	request_map->header=request_map_head;
 	request_map->header.type=GetTexture;
 	request_map->header.size=sizeof(IdPacket);
 	request_map->id=my_id;
+
+    if (DEBUG) printf("[MAP] Pacchetto creato. Serializzo\n");
+
 	size_t request_texture_map_for_server_len=Packet_serialize(request_texture_map_for_server, &(request_map->header));
     request_texture_map_for_server[request_texture_map_for_server_len] = '\0';
 
+    if (DEBUG) printf("[MAP] Serializzazione completata, invio del pacchetto in corso...\n");
 
   	ret = send_TCP(socket_desc, request_texture_map_for_server, request_texture_map_for_server_len+1, 0);
   	ERROR_HELPER(ret, "Could not send my texture for server");
 
+    if (DEBUG) printf("[MAP] Invio del pacchetto avvenuto con successo! Attendo la mappa dal server...\n");
+
     //Packet_free(&request_map_head);
 
-  	ret = recv_TCP(socket_desc, texture_map, sizeof(ImagePacket), 0);
+  	ret = recv_TCP(socket_desc, texture_map, sizeof(texture_map)+1, 0);
   	ERROR_HELPER(ret, "Could not read map texture from socket");
+
+    if (DEBUG) printf("[MAP] Pacchetto ricevuto. Deserializzo\n");
 
 	msg_len=ret-1;
 	/*texture_map[msg_len] = '\0';
@@ -712,13 +740,16 @@ int main(int argc, char **argv) {
 	ImagePacket* map = (ImagePacket*) Packet_deserialize(texture_map,msg_len);
 	if(map->header.type!=PostTexture && map->id!=0) ERROR_HELPER(-1,"error in protocol \n");
 
-
+    if (DEBUG) printf("[MAP] Deserializzazione completata!\n");
 
 	// these come from the server
+
+    if (DEBUG) printf("[CLIENT] Aggiorno i parametri\n");
 
 	Image* map_elevation = elevation->image;
 	Image* map_texture = map->image;
 
+    if (DEBUG) printf("[CLIENT] Parametri aggiornati. Costruzione del mondo\n");
 
 	// construct the world
 	World_init(&world, map_elevation, map_texture, 0.5, 0.5, 0.5);

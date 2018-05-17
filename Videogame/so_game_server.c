@@ -418,6 +418,7 @@ void* thread_server_TCP(void* args){
 
     }
 
+    if (DEBUG) printf("[ELEVATION_MAP] Attendo la richiesta di elevation_map dal client\n");
 
 
     //utente invia la richiesta di elevation map
@@ -425,13 +426,15 @@ void* thread_server_TCP(void* args){
     char elevation_map_buffer[DIM_BUFF];
     size_t elevation_map_len;
 
-    ret = recv_TCP(socket, elevation_map_buffer, sizeof(ImagePacket)+1, 0);
+    ret = recv_TCP(socket, elevation_map_buffer, sizeof(elevation_map_buffer)+1, 0);
     if (ret == -2) {
         printf("Could not receive elevation map request\n");
         client[idx].status = 0;
         pthread_exit(NULL);
     }
     else PTHREAD_ERROR_HELPER(ret, "Could not receive elevation map request");
+
+    if (DEBUG) printf("[ELEVATION_MAP] Richiesta ricevuta. Deserializzo il pacchetto\n");
 
     size_t msg_len = ret-1;
     /*elevation_map_buffer[msg_len] = '\0';
@@ -440,7 +443,11 @@ void* thread_server_TCP(void* args){
     IdPacket* elevation= (IdPacket*) Packet_deserialize(elevation_map_buffer,msg_len);
     if(elevation->header.type!=GetElevation) ERROR_HELPER(-1,"error in communication \n");
 
+    if (DEBUG) printf("[ELEVATION_MAP] Deserializzazione completata\n");
+
     int id = elevation->id;
+
+    if (DEBUG) printf("[ELEVATION_MAP] Creo il pacchetto di elevation_map\n");
 
     ImagePacket* ele_map = (ImagePacket*) malloc(sizeof(ImagePacket));
     PacketHeader elevation_header;
@@ -450,8 +457,12 @@ void* thread_server_TCP(void* args){
     ele_map->header.type = PostElevation;
     ele_map->header.size = sizeof(ImagePacket);
 
+    if (DEBUG) printf("[ELEVATION_MAP] Pacchetto creato, serializzo\n");
+
     elevation_map_len = Packet_serialize(elevation_map_buffer, &(ele_map->header));
     elevation_map_buffer[elevation_map_len] = '\0';
+
+    if (DEBUG) printf("[ELEVATION_MAP] Serializzazione completata, invio il pacchetto\n");
 
     ret = send_TCP(socket, elevation_map_buffer, elevation_map_len+1, 0);
     if (ret == -2) {
@@ -461,18 +472,24 @@ void* thread_server_TCP(void* args){
     }
     else PTHREAD_ERROR_HELPER(ret, "Could not send elevation map to client");
 
+    if (DEBUG) printf("[ELEVATION_MAP] Invio del pacchetto avvenuto con successo\n");
+
     //ricezione richiesta mappa e invio mappa
+
+    if (DEBUG) printf("[MAP] Attendo la richiesta di mappa dal client\n");
 
     char map_buffer[DIM_BUFF];
     size_t map_len;
 
-    ret = recv_TCP(socket, map_buffer, sizeof(IdPacket)+1, 0);
+    ret = recv_TCP(socket, map_buffer, sizeof(map_buffer)+1, 0);
     if (ret == -2) {
         printf("Could not receive map request\n");
         client[idx].status = 0;
         pthread_exit(NULL);
     }
     else PTHREAD_ERROR_HELPER(ret, "Could not receive map request");
+
+    if (DEBUG) printf("[MAP] Richiesta ricevuta. Deserializzo\n");
 
     msg_len = ret-1;
     /*map_buffer[msg_len] = '\0';
@@ -481,7 +498,11 @@ void* thread_server_TCP(void* args){
     IdPacket* map_request = (IdPacket*) Packet_deserialize(map_buffer, msg_len);
     if(map_request->header.type!=GetTexture)   ERROR_HELPER(-1, "Connection error (map request)");
 
+    if (DEBUG) printf("[MAP] Deserializzazione completata\n");
+
     id = map_request->id;
+
+    if (DEBUG) printf("[MAP] Creo il pacchetto della mappa\n");
 
     //invio mappa
     ImagePacket* map_packet = (ImagePacket*) malloc(sizeof(ImagePacket));
@@ -492,8 +513,12 @@ void* thread_server_TCP(void* args){
     map_packet->header.type = PostTexture;
     map_packet->header.size = sizeof(ImagePacket);
 
+    if (DEBUG) printf("[MAP] Pacchetto mappa creato. Serializzo\n");
+
     map_len = Packet_serialize(map_buffer, &(map_packet->header));
     map_buffer[map_len] = '\0';
+
+    if (DEBUG) printf("[MAP] Serializzazione completata. Invio del pacchetto in corso...\n");
 
     ret = send_TCP(socket, map_buffer, map_len+1, 0);
     if (ret == -2){
@@ -503,10 +528,7 @@ void* thread_server_TCP(void* args){
     }
     else PTHREAD_ERROR_HELPER(ret, "Could not send map to client\n");
 
-
-
-
-
+    if (DEBUG) printf("[MAP] Invio del pacchetto avvenuto con successo!\n");
 
     /** Ultimata la connessione e l'inizializzazione del client, c'è bisogno di inviargli lo stato di tutti gli altri client già connessi **/
 
@@ -519,7 +541,7 @@ void* thread_server_TCP(void* args){
     char client_alive_buf[DIM_BUFF];
     size_t alive_len;
 
-    //inviamo  le texture di tutti i cleint connessi
+    //inviamo  le texture di tutti i client connessi
 
     for (i = 0; i < MAX_USER_NUM; i++){
         if (i != idx && client[i].status==1){
