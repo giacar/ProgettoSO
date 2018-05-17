@@ -89,7 +89,7 @@ void* thread_listener_tcp(void* client_args){
         PacketHeader* clienth = Packet_deserialize(user, msg_len);
         if (clienth->type==PostTexture){
 			ImagePacket* client=(ImagePacket*)clienth;
-				
+
 			int id = client->id;
 
 
@@ -144,7 +144,7 @@ void* thread_listener_udp_M(void* client_args){
         PacketHeader update_head;
         update_head.size = sizeof(VehicleUpdatePacket);
         update_head.type = VehicleUpdate;
-        
+
         update->header=update_head;
         update->translational_force = veicolo.translational_force_update;
         update->rotational_force = veicolo.rotational_force_update;
@@ -529,8 +529,9 @@ int main(int argc, char **argv) {
 		// sending my texture
 		char texture_for_server[DIM_BUFF];
 
+        if (DEBUG) printf("[TEXTURE] Alloco la mia texture\n");
 
-		ImagePacket* my_texture=malloc(sizeof(ImagePacket));
+        ImagePacket* my_texture= (ImagePacket*) malloc(sizeof(ImagePacket));
 		PacketHeader img_head;
 		my_texture->header=img_head;
 		my_texture->header.type=PostTexture;
@@ -538,8 +539,13 @@ int main(int argc, char **argv) {
 		my_texture->id=id->id;
 		my_texture->image=my_texture_for_server;
 
+        if (DEBUG) printf("[TEXTURE] Pacchetto my_texture allocato. Serializzo.\n");
+
 		size_t texture_for_server_len = Packet_serialize(texture_for_server, &(my_texture->header));
         texture_for_server[texture_for_server_len] = '\0';
+
+        if (DEBUG) printf("[TEXTURE] Texture serializzata\n");
+
 
 		ret = send_TCP(socket_desc, texture_for_server, texture_for_server_len+1, 0);
 		ERROR_HELPER(ret, "Could not send my texture for server");
@@ -550,9 +556,11 @@ int main(int argc, char **argv) {
 
 		// receving my texture from server
 
+        if (DEBUG) printf("[TEXTURE] Attendo la mia texture dal server\n");
+
 		char my_texture_server[DIM_BUFF];
 
-		ret = recv_TCP(socket_desc, my_texture_server, sizeof(ImagePacket)+1, 0);
+		ret = recv_TCP(socket_desc, my_texture_server, sizeof(my_texture_server)+1, 0);
 		ERROR_HELPER(ret, "Could not read my texture from socket");
 
         if (DEBUG) printf("[TEXTURE] my_texture_server ricevuta\n");
@@ -561,13 +569,19 @@ int main(int argc, char **argv) {
 		/*my_texture_server[msg_len] = '\0';
         msg_len++;      Ho messo lo '\0' nel server */
 
+        if (DEBUG) printf("[TEXTURE] Deserializzo la mia texture ricevuta\n");
+
 		ImagePacket* my_texture_received = (ImagePacket*) Packet_deserialize(my_texture_server,msg_len);
 		/* Potrebbe dare problemi: confronta gli indirizzi a cui puntano e non il contenuto
         if(my_texture_received!=my_texture) ERROR_HELPER(-1,"error in communication: texture not matching! \n");*/
 
+        if (DEBUG) printf("[TEXTURE] Texture deserializzata. Aggiorno i miei parametri id e texture\n");
+
 		// these come from the server
 		my_id = id->id;
 		my_texture_from_server = my_texture_received->image;
+
+        if (DEBUG) printf("[TEXTURE] Parametri aggiornati\n");
 
 
 	}
@@ -597,7 +611,7 @@ int main(int argc, char **argv) {
 
         //Packet_free(&request_texture_head);
 
-		ret = recv_TCP(socket_desc, my_texture,sizeof(ImagePacket)+1, 0);
+		ret = recv_TCP(socket_desc, my_texture,sizeof(my_texture)+1, 0);
 		ERROR_HELPER(ret, "Could not read my texture from socket");
 
 		msg_len=ret-1;

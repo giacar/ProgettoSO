@@ -183,7 +183,7 @@ void* thread_server_TCP(void* args){
             printf("[LOGIN] Valore semaforo alla fine del login = %d\n", value);
         }
 
-		
+
 	}
 
 	// Già registrato
@@ -277,6 +277,8 @@ void* thread_server_TCP(void* args){
 
         if (DEBUG) printf("[IDPACKET] Ho deserializzato l'idPacket\n");
 
+        if (DEBUG) printf("[IDPACKET] Accedo ai dati dell'id request\n");
+
         if (id->id == -1){
             id->id = idx;
             size_t idPacket_response_len;
@@ -290,6 +292,8 @@ void* thread_server_TCP(void* args){
             }
             PTHREAD_ERROR_HELPER(ret, "Could not send id response to client\n");
 
+            if (DEBUG) printf("[IDPACKET] IdPacket inviato al client\n");
+
 
         }
         else{
@@ -299,14 +303,18 @@ void* thread_server_TCP(void* args){
 
         //nuovo utente: invia la sua texture
 
+        if (DEBUG) printf("[TEXTURE] Attendo la texture dal client\n");
+
         char texture_utente[DIM_BUFF];
 
-        ret = recv_TCP(socket, texture_utente, sizeof(ImagePacket)+1, 0);
+        ret = recv_TCP(socket, texture_utente, sizeof(texture_utente)+1, 0);
         if (ret == -2){
             printf("Could not receive client texture\n");
             pthread_exit(NULL);
         }
         PTHREAD_ERROR_HELPER(ret, "Could not receive client texture");
+
+        if (DEBUG) printf("[TEXTURE] Texture ricevuta dal client. Deserializzo.\n");
 
         msg_len = ret-1;
         /*texture_utente[msg_len] = '\0';
@@ -314,6 +322,8 @@ void* thread_server_TCP(void* args){
 
         ImagePacket* client_texture = (ImagePacket*) Packet_deserialize(texture_utente, msg_len);
         if (client_texture->header.type!=PostTexture) PTHREAD_ERROR_HELPER(-1, "Error in client texture packet!");
+
+        if (DEBUG) printf("[TEXTURE] Texture deserializzata\n");
 
         client[idx].id = idx;
         client[idx].texture = client_texture->image;
@@ -326,6 +336,8 @@ void* thread_server_TCP(void* args){
         texture_utente_len = Packet_serialize(texture_utente, &(client_texture->header));
         texture_utente[texture_utente_len] = '\0';
 
+        if (DEBUG) printf("[TEXTURE] Invio al client la sua texture\n");
+
         ret = send_TCP(socket, texture_utente, texture_utente_len+1, 0);
         if (ret == -2){
             printf("Could not send client texture\n");
@@ -334,15 +346,18 @@ void* thread_server_TCP(void* args){
         }
         else PTHREAD_ERROR_HELPER(ret, "Could not send client texture\n");
 
+        if (DEBUG) printf("[TEXTURE] Texture inviata al client con successo\n");
+
          // create a vehicle
 		Vehicle* vehicle=(Vehicle*) malloc(sizeof(Vehicle));
 		Vehicle_init(vehicle, &world, idx, client[idx].texture);
 
+        if (DEBUG) printf("[VEHICLE] Veicolo del client creato\n");
+
 		//  add it to the world
 		World_addVehicle(&world, vehicle);
 
-
-
+        if (DEBUG) printf("[WORLD] Veicolo aggiunto al mondo con successo\n");
 
     }
 
@@ -357,7 +372,7 @@ void* thread_server_TCP(void* args){
         char idPacket_buf[DIM_BUFF];
         size_t idPacket_buf_len;
 
-        ret = recv_TCP(socket, idPacket_buf, sizeof(IdPacket)+1, 0);
+        ret = recv_TCP(socket, idPacket_buf, sizeof(idPacket_buf)+1, 0);
         if (ret == -2) {
             printf("Could not receive IdPacket from client\n");
             pthread_exit(NULL);
@@ -525,7 +540,7 @@ void* thread_server_TCP(void* args){
     }
 
     //Packet_free(&client_alive_header);  DISCUTERNE L'APPLICAZIONE
-    
+
     //inviamo a tutti i client attualmente connessi la texture del nuovo client appena arrivato
     ImagePacket* texture=(ImagePacket*)malloc(sizeof(ImagePacket));
 	PacketHeader head;
@@ -551,17 +566,17 @@ void* thread_server_TCP(void* args){
     }
 
     //Packet_free(&head);
-    
+
 	char test_buf[DIM_BUFF];
 	size_t test_len;
-	
+
 	IdPacket* test=(IdPacket*)malloc(sizeof(IdPacket));
 	PacketHeader testh;
 	testh.type=GetId;
 	testh.size=sizeof(IdPacket);
 	test->header=testh;
 	test->id=90;
-	
+
 	test_len=Packet_serialize(test_buf,&(test->header));
     test_buf[test_len] = '\0';
 	while(1){
@@ -579,7 +594,7 @@ void* thread_server_TCP(void* args){
 		else PTHREAD_ERROR_HELPER(ret, "Could not send user data to client\n");
 		sleep(1000);
 	}
-	
+
     /** FINE LAVORO TCP **/
 
 
@@ -685,7 +700,7 @@ void* thread_server_UDP_sender(void* args){
 
         ret = sem_post(&sem_thread_UDP);
         ERROR_HELPER(ret, "Failed to post sem_thread_UDP in thread_UDP_sender");
-        
+
         sleep(500);
     }
 
