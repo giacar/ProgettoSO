@@ -60,7 +60,7 @@ void* thread_listener_tcp(void* client_args){
     //Vehicle vehicle=arg->v;
 
     //Ricezione degli ImagePacket contenenti id e texture di tutti i client presenti nel mondo
-    char user[DIM_BUFF];
+    char* user = (char*)malloc(DIM_BUFF*sizeof(char));
     int msg_len;
 
     while (1){
@@ -135,13 +135,16 @@ void* thread_listener_udp_M(void* client_args){
     Ciclo while che opera fino a quando il client è in funzione.
     **/
 
+    VehicleUpdatePacket* update = (VehicleUpdatePacket*) malloc(sizeof(VehicleUpdatePacket));
+    PacketHeader update_head;
+    char *vehicle_update = (char *)malloc(DIM_BUFF*sizeof(char));
+
     while(1){
 
 
 
     //creazione di un pacchetto di update personale da inviare al server.
-        VehicleUpdatePacket* update = (VehicleUpdatePacket*) malloc(sizeof(VehicleUpdatePacket));
-        PacketHeader update_head;
+
         update_head.size = sizeof(VehicleUpdatePacket);
         update_head.type = VehicleUpdate;
 
@@ -150,16 +153,18 @@ void* thread_listener_udp_M(void* client_args){
         update->rotational_force = veicolo.rotational_force_update;
         update->id = id;
 
-        char vehicle_update[DIM_BUFF];
         int vehicle_update_len = Packet_serialize(vehicle_update, &(update->header));
+        vehicle_update[vehicle_update_len] = '\0';
 
         ret = send_UDP(socket_UDP, vehicle_update, vehicle_update_len, 0, (struct sockaddr*) &server_UDP, slen);
         PTHREAD_ERROR_HELPER(ret, "Could not send vehicle updates to server");
 
-        Packet_free(&update_head);
-
 
     }
+
+    //Packet_free(&update_head);
+    free(update);
+    free(vehicle_update);
 
     /**uscire dal while, significa che il client si sta disconnettendo. Il server deve salvare il suo stato da qualche parte, per ripristinarlo più avanti
        se il client si connetterà ancora**/
@@ -195,14 +200,18 @@ void* thread_listener_udp_W(void* client_args){
     Ciclo while che opera fino a quando il client è in funzione.
     **/
 
+    char *world_update = (char *)malloc(DIM_BUFF*sizeof(char));
+    char *world_update_len = (char *)malloc(DIM_BUFF*sizeof(char));
+    WorldUpdatePacket *wup;
+    ClientUpdate *client_update;
+    ClientUpdate update;
+    Vehicle *v;
+
     while(1){
 
 
     //richiesta di tutti gli update degli altri veicoli, per aggiornare il proprio mondo
     //da sistemare la dimensione
-
-        char world_update[DIM_BUFF];
-        char world_update_len[DIM_BUFF];
 
         //non sappiamo quanto è grande la stringa che ci deve arrivare e che dobbiamo convertire in numero intero
         ret= recv_UDP(socket_UDP,world_update_len, 1,0, (struct sockaddr *) &server_UDP, (socklen_t*) &slen);
@@ -215,17 +224,17 @@ void* thread_listener_udp_W(void* client_args){
 
 
         world_update[dimensione_mondo] = '\0';
-        dimensione_mondo++;
+        //dimensione_mondo++;
 
     //estriamo il numero di veicoli e gli update di ogni veicolo
 
-        WorldUpdatePacket* wup = (WorldUpdatePacket*) Packet_deserialize(world_update, dimensione_mondo);
+        wup = (WorldUpdatePacket*) Packet_deserialize(world_update, dimensione_mondo);
         int num_vehicles = wup->num_vehicles;
-        ClientUpdate* client_update = wup->updates; //VETTOREEEEEEEEE di client update
+        client_update = wup->updates; //VETTOREEEEEEEEE di client update
 
         int i;
         for(i=0;i<num_vehicles;i++){
-			ClientUpdate update = *(client_update+i*sizeof(ClientUpdate));
+            update = *(client_update+i*sizeof(ClientUpdate));
 
 
             //estrapoliamo tutti i dati per il singolo veicolo presente nel mondo, identificato da "id"
@@ -237,7 +246,7 @@ void* thread_listener_udp_W(void* client_args){
             float theta = update.theta;
 
             //Aggiornamento veicolo
-            Vehicle* v = World_getVehicle(&world, id);
+            v = World_getVehicle(&world, id);
             v->x = x;
             v->y = y;
             v->z = v->camera_to_world[14];
@@ -249,6 +258,9 @@ void* thread_listener_udp_W(void* client_args){
 
 
     }
+
+    free(World_update);
+    free(World_update_len);
 
     /**uscire dal while, significa che il client si sta disconnettendo. Il server deve salvare il suo stato da qualche parte, per ripristinarlo più avanti
        se il client si connetterà ancora**/
