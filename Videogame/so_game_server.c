@@ -257,7 +257,7 @@ void* thread_server_TCP(void* args){
 
         if (DEBUG) printf("[IDPACKET] Sono entrato nel <if (login_status == 0)>\n");
 
-        char idPacket[DIM_BUFF];
+        char* idPacket = (char*) calloc(DIM_BUFF+1, sizeof(char));
 
         ret = recv_TCP(socket, idPacket, sizeof(idPacket)+1, 0);
         if (ret == -2){
@@ -301,13 +301,15 @@ void* thread_server_TCP(void* args){
             pthread_exit(NULL);
         }
 
+        free(idPacket);
+
         //nuovo utente: invia la sua texture
 
         if (DEBUG) printf("[TEXTURE] Attendo la texture dal client\n");
 
-        char texture_utente[DIM_BUFF];
+        char* texture_utente = (char*) calloc(DIM_BUFF+1, sizeof(char));
 
-        ret = recv_TCP(socket, texture_utente, sizeof(texture_utente)+1, 0);
+        ret = recv_TCP(socket, texture_utente, sizeof(texture_utente), 0);
         if (ret == -2){
             printf("Could not receive client texture\n");
             pthread_exit(NULL);
@@ -348,6 +350,8 @@ void* thread_server_TCP(void* args){
 
         if (DEBUG) printf("[TEXTURE] Texture inviata al client con successo\n");
 
+        free(texture_utente);
+
          // create a vehicle
 		Vehicle* vehicle=(Vehicle*) malloc(sizeof(Vehicle));
 		Vehicle_init(vehicle, &world, idx, client[idx].texture);
@@ -369,7 +373,7 @@ void* thread_server_TCP(void* args){
          * in pratica gli inviamo tutto insieme
         **/
 
-        char idPacket_buf[DIM_BUFF];
+        char* idPacket_buf = (char*) calloc(DIM_BUFF+1, sizeof(char));
         size_t idPacket_buf_len;
 
         ret = recv_TCP(socket, idPacket_buf, sizeof(idPacket_buf)+1, 0);
@@ -409,6 +413,8 @@ void* thread_server_TCP(void* args){
         }
         else PTHREAD_ERROR_HELPER(ret, "Could not send client texture and id");
 
+        free(idPacket_buf);
+
          // create a vehicle
 		Vehicle* vehicle=(Vehicle*) malloc(sizeof(Vehicle));
 		Vehicle_init(vehicle, &world, idx, client[idx].texture);
@@ -423,7 +429,7 @@ void* thread_server_TCP(void* args){
 
     //utente invia la richiesta di elevation map
 
-    char elevation_map_buffer[DIM_BUFF];
+    char* elevation_map_buffer = (char*) calloc(DIM_BUFF+1, sizeof(char));
     size_t elevation_map_len;
 
     ret = recv_TCP(socket, elevation_map_buffer, sizeof(elevation_map_buffer)+1, 0);
@@ -474,11 +480,13 @@ void* thread_server_TCP(void* args){
 
     if (DEBUG) printf("[ELEVATION_MAP] Invio del pacchetto avvenuto con successo\n");
 
+    free(elevation_map_buffer);
+
     //ricezione richiesta mappa e invio mappa
 
     if (DEBUG) printf("[MAP] Attendo la richiesta di mappa dal client\n");
 
-    char map_buffer[DIM_BUFF];
+    char* map_buffer = (char*) calloc(DIM_BUFF+1, sizeof(char));
     size_t map_len;
 
     ret = recv_TCP(socket, map_buffer, sizeof(map_buffer)+1, 0);
@@ -529,6 +537,8 @@ void* thread_server_TCP(void* args){
     else PTHREAD_ERROR_HELPER(ret, "Could not send map to client\n");
 
     if (DEBUG) printf("[MAP] Invio del pacchetto avvenuto con successo!\n");
+
+    free(map_buffer);
 
     /** Ultimata la connessione e l'inizializzazione del client, c'è bisogno di inviargli lo stato di tutti gli altri client già connessi **/
 

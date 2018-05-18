@@ -512,14 +512,15 @@ int main(int argc, char **argv) {
 		request_id->header.size=sizeof(IdPacket);
 		request_id->id=-1;
 
-		char idPacket_request[DIM_BUFF];
-		char idPacket[DIM_BUFF];
+		char* idPacket_request = (char*) calloc(DIM_BUFF+1, sizeof(char));
+		char* idPacket = (char*) calloc(DIM_BUFF+1, sizeof(char));
+
 		size_t idPacket_request_len = Packet_serialize(idPacket_request,&(request_id->header));
 		idPacket_request[idPacket_request_len] = '\0';
 
 		if (DEBUG) printf("[IDPACKET] Sto per mandare idPacket\n");
 
-		ret = send_TCP(socket_desc, idPacket_request, idPacket_request_len+1, 0);
+		ret = send_TCP(socket_desc, idPacket_request, idPacket_request_len, 0);
 		ERROR_HELPER(ret, "Could not send id request  to socket");
 
 		if (DEBUG) printf("[IDPACKET] idPacket richiesto\n");
@@ -538,8 +539,11 @@ int main(int argc, char **argv) {
 
         if (DEBUG) printf("[IDPACKET] idPacket deserializzato\n");
 
+        free(idPacket_request);
+        free(idPacket);
+
 		// sending my texture
-		char texture_for_server[DIM_BUFF];
+		char* texture_for_server = (char*) calloc(DIM_BUFF+1, sizeof(char));
 
         if (DEBUG) printf("[TEXTURE] Alloco la mia texture\n");
 
@@ -566,11 +570,13 @@ int main(int argc, char **argv) {
 
         //Packet_free(&img_head); non serve in quanto allocato staticamente
 
+        free(texture_for_server);
+
 		// receving my texture from server
 
         if (DEBUG) printf("[TEXTURE] Attendo la mia texture dal server\n");
 
-		char my_texture_server[DIM_BUFF];
+		char* my_texture_server = (char*) calloc(DIM_BUFF+1, sizeof(char));
 
 		ret = recv_TCP(socket_desc, my_texture_server, sizeof(my_texture_server)+1, 0);
 		ERROR_HELPER(ret, "Could not read my texture from socket");
@@ -595,6 +601,8 @@ int main(int argc, char **argv) {
 
         if (DEBUG) printf("[CLIENT] Parametri aggiornati\n");
 
+        free(my_texture_server);
+
 
 	}
 
@@ -613,8 +621,9 @@ int main(int argc, char **argv) {
 		request_texture->header.size=sizeof(IdPacket);
 		request_texture->header.type=GetTexture;
 
-		char request_texture_for_server[DIM_BUFF];
-		char my_texture[DIM_BUFF];
+		char* request_texture_for_server = (char*) calloc(DIM_BUFF+1,sizeof(char));
+		char* my_texture = (char*) calloc(DIM_BUFF+1, sizeof(char));
+
 		size_t request_texture_len =Packet_serialize(request_texture_for_server, &(request_texture->header));
         request_texture_for_server[request_texture_len] = '\0';
 
@@ -636,6 +645,9 @@ int main(int argc, char **argv) {
 		// these come from the server
 		my_id = my_texture_received->id;
 		my_texture_from_server = my_texture_received->image;
+
+        free(request_texture_for_server);
+        free(my_texture);
 
 
 		// ricezione ID in modo da inserirla successivamente nel ID packet
@@ -666,8 +678,8 @@ int main(int argc, char **argv) {
 
     if (DEBUG) printf("[ELEVATION_MAP] Pacchetto richiesta elevation_map creato\n");
 
-	char request_elevation_for_server[DIM_BUFF];
-	char elevation_map[DIM_BUFF];
+	char* request_elevation_for_server = (char*) calloc(DIM_BUFF+1, sizeof(char));
+	char* elevation_map = (char*) calloc(DIM_BUFF+1, sizeof(char));
 
     if (DEBUG) printf("[ELEVATION_MAP] Serializzo il pacchetto\n");
 
@@ -698,12 +710,15 @@ int main(int argc, char **argv) {
 
     if (DEBUG) printf("[ELEVATION_MAP] Pacchetto deserializzato\n");
 
+    free(request_elevation_for_server);
+    free(elevation_map);
+
 	//requesting and receving map
 
     if (DEBUG) printf("[MAP] Richiedo la mappa al server\n");
 
-	char request_texture_map_for_server[DIM_BUFF];
-	char texture_map[DIM_BUFF];
+	char* request_texture_map_for_server = (char*) calloc(DIM_BUFF+1, sizeof(char));  //buffer per la richiesta della mappa
+	char* texture_map = (char*) calloc(DIM_BUFF+1, sizeof(char));                     //buffer per la ricezione della mappa
 
     if (DEBUG) printf("[MAP] Creo il pacchetto di richiesta\n");
 
@@ -741,6 +756,10 @@ int main(int argc, char **argv) {
 	if(map->header.type!=PostTexture && map->id!=0) ERROR_HELPER(-1,"error in protocol \n");
 
     if (DEBUG) printf("[MAP] Deserializzazione completata!\n");
+
+    free(request_texture_map_for_server);
+    free(texture_map);
+
 
 	// these come from the server
 
