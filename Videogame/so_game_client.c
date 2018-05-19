@@ -510,7 +510,7 @@ int main(int argc, char **argv) {
 		request_id->header=id_head;
 		request_id->header.type=GetId;
 		request_id->header.size=sizeof(IdPacket);
-		request_id->id=-1;
+		request_id->id = -1;
 
 		char* idPacket_request = (char*) calloc(DIM_BUFF+1, sizeof(char));
 		char* idPacket = (char*) calloc(DIM_BUFF+1, sizeof(char));
@@ -525,7 +525,7 @@ int main(int argc, char **argv) {
 
 		if (DEBUG) printf("[IDPACKET] idPacket richiesto\n");
 
-		ret = recv_TCP(socket_desc, idPacket, sizeof(idPacket)+1, 0);
+		ret = recv_TCP(socket_desc, idPacket, sizeof(IdPacket), 0);
 		ERROR_HELPER(ret, "Could not read id from socket");
 
 		if (DEBUG) printf("[IDPACKET] idPacket ricevuto\n");
@@ -547,7 +547,7 @@ int main(int argc, char **argv) {
 
         if (DEBUG) printf("[TEXTURE] Alloco la mia texture\n");
 
-        ImagePacket* my_texture= (ImagePacket*) malloc(sizeof(ImagePacket));
+        ImagePacket* my_texture = (ImagePacket*) malloc(sizeof(ImagePacket));
 		PacketHeader img_head;
 		my_texture->header=img_head;
 		my_texture->header.type=PostTexture;
@@ -560,10 +560,9 @@ int main(int argc, char **argv) {
 		size_t texture_for_server_len = Packet_serialize(texture_for_server, &(my_texture->header));
         texture_for_server[texture_for_server_len] = '\0';
 
-        if (DEBUG) printf("[TEXTURE] Texture serializzata\n");
+        if (DEBUG) printf("[TEXTURE] Texture serializzata. Invio sulla socket...\n");
 
-
-		ret = send_TCP(socket_desc, texture_for_server, texture_for_server_len+1, 0);
+		ret = send_TCP(socket_desc, texture_for_server, texture_for_server_len, 0);
 		ERROR_HELPER(ret, "Could not send my texture for server");
 
         if (DEBUG) printf("[TEXTURE] texture_for_server inviata\n");
@@ -578,7 +577,7 @@ int main(int argc, char **argv) {
 
 		char* my_texture_server = (char*) calloc(DIM_BUFF+1, sizeof(char));
 
-		ret = recv_TCP(socket_desc, my_texture_server, sizeof(my_texture_server)+1, 0);
+		ret = recv_TCP(socket_desc, my_texture_server, sizeof(ImagePacket), 0);
 		ERROR_HELPER(ret, "Could not read my texture from socket");
 
         if (DEBUG) printf("[TEXTURE] my_texture_server ricevuta\n");

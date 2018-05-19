@@ -259,7 +259,7 @@ void* thread_server_TCP(void* args){
 
         char* idPacket = (char*) calloc(DIM_BUFF+1, sizeof(char));
 
-        ret = recv_TCP(socket, idPacket, sizeof(idPacket)+1, 0);
+        ret = recv_TCP(socket, idPacket, sizeof(IdPacket), 0);
         if (ret == -2){
             printf("Could not receive id request from client\n");
             pthread_exit(NULL);
@@ -278,6 +278,8 @@ void* thread_server_TCP(void* args){
         if (DEBUG) printf("[IDPACKET] Ho deserializzato l'idPacket\n");
 
         if (DEBUG) printf("[IDPACKET] Accedo ai dati dell'id request\n");
+
+        if (DEBUG) printf("[IDPACKET] Valore dell'id: %d\n", id->id);
 
         if (id->id == -1){
             id->id = idx;
@@ -309,7 +311,7 @@ void* thread_server_TCP(void* args){
 
         char* texture_utente = (char*) calloc(DIM_BUFF+1, sizeof(char));
 
-        ret = recv_TCP(socket, texture_utente, sizeof(texture_utente), 0);
+        ret = recv_TCP(socket, texture_utente, sizeof(ImagePacket), 0);
         if (ret == -2){
             printf("Could not receive client texture\n");
             pthread_exit(NULL);
@@ -376,7 +378,7 @@ void* thread_server_TCP(void* args){
         char* idPacket_buf = (char*) calloc(DIM_BUFF+1, sizeof(char));
         size_t idPacket_buf_len;
 
-        ret = recv_TCP(socket, idPacket_buf, sizeof(idPacket_buf)+1, 0);
+        ret = recv_TCP(socket, idPacket_buf, sizeof(IdPacket), 0);
         if (ret == -2) {
             printf("Could not receive IdPacket from client\n");
             pthread_exit(NULL);
@@ -432,7 +434,7 @@ void* thread_server_TCP(void* args){
     char* elevation_map_buffer = (char*) calloc(DIM_BUFF+1, sizeof(char));
     size_t elevation_map_len;
 
-    ret = recv_TCP(socket, elevation_map_buffer, sizeof(elevation_map_buffer)+1, 0);
+    ret = recv_TCP(socket, elevation_map_buffer, sizeof(IdPacket), 0);
     if (ret == -2) {
         printf("Could not receive elevation map request\n");
         client[idx].status = 0;
@@ -489,7 +491,7 @@ void* thread_server_TCP(void* args){
     char* map_buffer = (char*) calloc(DIM_BUFF+1, sizeof(char));
     size_t map_len;
 
-    ret = recv_TCP(socket, map_buffer, sizeof(map_buffer)+1, 0);
+    ret = recv_TCP(socket, map_buffer, sizeof(IdPacket), 0);
     if (ret == -2) {
         printf("Could not receive map request\n");
         client[idx].status = 0;
