@@ -257,9 +257,9 @@ void* thread_server_TCP(void* args){
 
         if (DEBUG) printf("[IDPACKET] Sono entrato nel <if (login_status == 0)>\n");
 
-        char* idPacket = (char*) calloc(DIM_BUFF+1, sizeof(char));
+        char idPacket[DIM_BUFF];
 
-        ret = recv_TCP(socket, idPacket, sizeof(IdPacket), 0);
+        ret = recv_TCP(socket, idPacket, sizeof(IdPacket)+1, 0);
         if (ret == -2){
             printf("Could not receive id request from client\n");
             pthread_exit(NULL);
@@ -267,6 +267,12 @@ void* thread_server_TCP(void* args){
         PTHREAD_ERROR_HELPER(ret, "Could not receive id request from client");
 
         if (DEBUG) printf("[IDPACKET] Ho ricevuto idPacket request dal client\n");
+
+        if (DEBUG) printf("[IDPACKET] Byte letti: %d\n", ret);
+
+        if (ret != (int) sizeof(IdPacket)+1){
+            if (DEBUG) printf("[IDPACKET] C'è un errore! Il numero di byte arrivati non corrisponde!\n");
+        }
 
         size_t msg_len = ret-1;
         /*idPacket[msg_len] = '\0';
@@ -278,8 +284,6 @@ void* thread_server_TCP(void* args){
         if (DEBUG) printf("[IDPACKET] Ho deserializzato l'idPacket\n");
 
         if (DEBUG) printf("[IDPACKET] Accedo ai dati dell'id request\n");
-
-        if (DEBUG) printf("[IDPACKET] Valore dell'id: %d\n", id->id);
 
         if (id->id == -1){
             id->id = idx;
@@ -296,27 +300,43 @@ void* thread_server_TCP(void* args){
 
             if (DEBUG) printf("[IDPACKET] IdPacket inviato al client\n");
 
+            if (DEBUG) printf("[IDPACKET] Byte inviati: %d\n", (int) ret);
 
+            if (ret == idPacket_response_len+1){
+                if (DEBUG) printf("[IDPACKET] Tutto ok\n");
+            }
+            else{
+                if (DEBUG){
+                    printf("[IDPACKET] No buono\n");
+                    printf("[IDPACKET] ret = %d\n", ret);
+                    printf("[IDPACKET] idPacket_request_len = %d\n", (int) idPacket_response_len);
+                }
+            }
         }
+
         else{
             PTHREAD_ERROR_HELPER(-1, "Error in id packet request!");
             pthread_exit(NULL);
         }
 
-        free(idPacket);
-
         //nuovo utente: invia la sua texture
 
         if (DEBUG) printf("[TEXTURE] Attendo la texture dal client\n");
 
-        char* texture_utente = (char*) calloc(DIM_BUFF+1, sizeof(char));
+        char texture_utente[DIM_BUFF];
 
-        ret = recv_TCP(socket, texture_utente, sizeof(ImagePacket), 0);
+        ret = recv_TCP(socket, texture_utente, sizeof(texture_utente)+1, 0);
         if (ret == -2){
             printf("Could not receive client texture\n");
             pthread_exit(NULL);
         }
         PTHREAD_ERROR_HELPER(ret, "Could not receive client texture");
+
+        if (DEBUG) printf("[TEXTURE] Byte letti: %d\n", (int) ret);
+
+        if (ret != (int) sizeof(texture_utente)+1){ //praticamente inutile
+            if (DEBUG) printf("[TEXTURE] C'è un problema! Il numero di byte arrivati non corrisponde!\n");
+        }
 
         if (DEBUG) printf("[TEXTURE] Texture ricevuta dal client. Deserializzo.\n");
 
@@ -335,10 +355,13 @@ void* thread_server_TCP(void* args){
         client[idx].addr=arg->addr;
         client[idx].socket_TCP=arg->socket_desc_TCP_client;
 
+        if (DEBUG) printf("[TEXTURE] Serializzo la texture del client\n");
 
         size_t texture_utente_len;
         texture_utente_len = Packet_serialize(texture_utente, &(client_texture->header));
         texture_utente[texture_utente_len] = '\0';
+
+        if (DEBUG) printf("[TEXTURE] Texture serializzata\n");
 
         if (DEBUG) printf("[TEXTURE] Invio al client la sua texture\n");
 
@@ -350,15 +373,28 @@ void* thread_server_TCP(void* args){
         }
         else PTHREAD_ERROR_HELPER(ret, "Could not send client texture\n");
 
+        if (DEBUG) printf("[TEXTURE] Byte inviati: %d\n", (int) ret);
+
+        if (ret == texture_utente_len+1){
+            if (DEBUG) printf("[TEXTURE] Tutto ok\n");
+        }
+        else{
+            if (DEBUG){
+                printf("[TEXTURE] No buono\n");
+                printf("[TEXTURE] ret = %d\n", ret);
+                printf("[TEXTURE] texture_utente_len = %d\n", (int) texture_utente_len);
+            }
+        }
+
         if (DEBUG) printf("[TEXTURE] Texture inviata al client con successo\n");
 
-        free(texture_utente);
+        if (DEBUG) printf("[TEXTURE] Creo il veicolo del client!\n");
 
          // create a vehicle
 		Vehicle* vehicle=(Vehicle*) malloc(sizeof(Vehicle));
 		Vehicle_init(vehicle, &world, idx, client[idx].texture);
 
-        if (DEBUG) printf("[VEHICLE] Veicolo del client creato\n");
+        if (DEBUG) printf("[VEHICLE] Veicolo del client creato. Lo aggiungo al mondo\n");
 
 		//  add it to the world
 		World_addVehicle(&world, vehicle);
@@ -375,7 +411,7 @@ void* thread_server_TCP(void* args){
          * in pratica gli inviamo tutto insieme
         **/
 
-        char* idPacket_buf = (char*) calloc(DIM_BUFF+1, sizeof(char));
+        char idPacket_buf[DIM_BUFF];
         size_t idPacket_buf_len;
 
         ret = recv_TCP(socket, idPacket_buf, sizeof(IdPacket), 0);
@@ -415,8 +451,6 @@ void* thread_server_TCP(void* args){
         }
         else PTHREAD_ERROR_HELPER(ret, "Could not send client texture and id");
 
-        free(idPacket_buf);
-
          // create a vehicle
 		Vehicle* vehicle=(Vehicle*) malloc(sizeof(Vehicle));
 		Vehicle_init(vehicle, &world, idx, client[idx].texture);
@@ -431,16 +465,18 @@ void* thread_server_TCP(void* args){
 
     //utente invia la richiesta di elevation map
 
-    char* elevation_map_buffer = (char*) calloc(DIM_BUFF+1, sizeof(char));
+    char elevation_map_buffer[DIM_BUFF];
     size_t elevation_map_len;
 
-    ret = recv_TCP(socket, elevation_map_buffer, sizeof(IdPacket), 0);
+    ret = recv_TCP(socket, elevation_map_buffer, sizeof(IdPacket)+1, 0);
     if (ret == -2) {
         printf("Could not receive elevation map request\n");
         client[idx].status = 0;
         pthread_exit(NULL);
     }
     else PTHREAD_ERROR_HELPER(ret, "Could not receive elevation map request");
+
+    if (DEBUG) printf("[ELEVATION_MAP] Byte letti: %d\n", ret);
 
     if (DEBUG) printf("[ELEVATION_MAP] Richiesta ricevuta. Deserializzo il pacchetto\n");
 
@@ -480,24 +516,26 @@ void* thread_server_TCP(void* args){
     }
     else PTHREAD_ERROR_HELPER(ret, "Could not send elevation map to client");
 
-    if (DEBUG) printf("[ELEVATION_MAP] Invio del pacchetto avvenuto con successo\n");
+    if (DEBUG) printf("[ELEVATION_MAP] Byte inviati: %d\n", ret);
 
-    free(elevation_map_buffer);
+    if (DEBUG) printf("[ELEVATION_MAP] Invio del pacchetto avvenuto con successo\n");
 
     //ricezione richiesta mappa e invio mappa
 
     if (DEBUG) printf("[MAP] Attendo la richiesta di mappa dal client\n");
 
-    char* map_buffer = (char*) calloc(DIM_BUFF+1, sizeof(char));
-    size_t map_len;
+    char map_buffer[DIM_BUFF];
+    //size_t map_len;
 
-    ret = recv_TCP(socket, map_buffer, sizeof(IdPacket), 0);
+    ret = recv_TCP(socket, map_buffer, sizeof(IdPacket)+1, 0);
     if (ret == -2) {
         printf("Could not receive map request\n");
         client[idx].status = 0;
         pthread_exit(NULL);
     }
     else PTHREAD_ERROR_HELPER(ret, "Could not receive map request");
+
+    if (DEBUG) printf("[MAP] Byte letti: %d\n", ret);
 
     if (DEBUG) printf("[MAP] Richiesta ricevuta. Deserializzo\n");
 
@@ -515,6 +553,10 @@ void* thread_server_TCP(void* args){
     if (DEBUG) printf("[MAP] Creo il pacchetto della mappa\n");
 
     //invio mappa
+
+    char mappa[DIM_BUFF];
+    size_t mappa_len;
+
     ImagePacket* map_packet = (ImagePacket*) malloc(sizeof(ImagePacket));
     PacketHeader map_header;
     map_packet->header = map_header;
@@ -525,12 +567,14 @@ void* thread_server_TCP(void* args){
 
     if (DEBUG) printf("[MAP] Pacchetto mappa creato. Serializzo\n");
 
-    map_len = Packet_serialize(map_buffer, &(map_packet->header));
-    map_buffer[map_len] = '\0';
+    mappa_len = Packet_serialize(mappa, &(map_packet->header));
+    mappa[mappa_len] = '\0';
 
-    if (DEBUG) printf("[MAP] Serializzazione completata. Invio del pacchetto in corso...\n");
+    if (DEBUG) printf("[MAP] Serializzazione completata. Sto per inviare: %d byte\n", (int) mappa_len+1);
 
-    ret = send_TCP(socket, map_buffer, map_len+1, 0);
+    if (DEBUG) printf("[MAP] Invio del pacchetto in corso!\n");
+
+    ret = send_TCP(socket, mappa, mappa_len+1, 0);
     if (ret == -2){
         printf("Could not send map to client\n");
         client[idx].status = 0;
@@ -538,9 +582,9 @@ void* thread_server_TCP(void* args){
     }
     else PTHREAD_ERROR_HELPER(ret, "Could not send map to client\n");
 
-    if (DEBUG) printf("[MAP] Invio del pacchetto avvenuto con successo!\n");
+    if (DEBUG) printf("[MAP] Byte inviati: %d\n", ret);
 
-    free(map_buffer);
+    if (DEBUG) printf("[MAP] Invio del pacchetto avvenuto con successo!\n");
 
     /** Ultimata la connessione e l'inizializzazione del client, c'è bisogno di inviargli lo stato di tutti gli altri client già connessi **/
 
