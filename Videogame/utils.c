@@ -9,22 +9,24 @@
 #include "common.h"
 #include "so_game_protocol.h"
 
-int recv_TCP_packet(int socket, char* buf, int flags) {
-	int ret, packet_len, bytes_read = 0;
+int recv_TCP_packet(int socket, char* buf, int flags, int* bytes_read) {
+	int ret, packet_len, byte_letti = 0;
 
 	do {
 		ret = recv(socket, buf, sizeof(PacketHeader), flags);
 	} while (ret == -1 && errno == EINTR);
 
-	bytes_read += ret;
+	byte_letti += ret;
 	PacketHeader *head = Packet_deserialize(buf, sizeof(PacketHeader));
 	packet_len = head->size;
 
 	do {
-		ret = recv(socket, buf+bytes_read, packet_len-bytes_read, flags);
+		ret = recv(socket, buf+byte_letti, packet_len-byte_letti, flags);
 	} while (ret == -1 && errno == EINTR);
 
-	bytes_read += ret;
+	byte_letti += ret;
+
+    *bytes_read = byte_letti;
 
 	return ret;
 }
@@ -52,7 +54,7 @@ int recv_TCP(int socket, char *buf, size_t len, int flags) {
 	// Ricezione non conoscendo la dimensione (len == 1)
 
 	else {
-		
+
 		while (!finito) {
 			ret = recv(socket, buf+bytes_read, 1, flags);
 
@@ -72,7 +74,7 @@ int recv_TCP(int socket, char *buf, size_t len, int flags) {
 			bytes_read++;
 		}
 		ret = bytes_read;
-		
+
 	}
 
 	return ret;

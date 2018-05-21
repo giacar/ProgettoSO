@@ -64,7 +64,7 @@ int recv_TCP(int socket, char *buf, size_t len, int flags);
 
 // Funzione di ricezione TCP per i pacchetti
 
-int recv_TCP_packet(int socket, char* buf, int flags);
+int recv_TCP_packet(int socket, char* buf, int flags, int* bytes_read);
 
 // Funzione di invio TCP
 

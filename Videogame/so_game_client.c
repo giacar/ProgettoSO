@@ -64,13 +64,15 @@ void* thread_listener_tcp(void* client_args){
     char* user = (char*)malloc(DIM_BUFF*sizeof(char));
     int msg_len;
 
+    int bytes_read = 0;
+
     while (1){
 
         //Il server invia le celle dell'array dei connessi che non sono messe a NULL.
-        ret = recv_TCP_packet(socket, user, 0);
+        ret = recv_TCP_packet(socket, user, 0, &bytes_read);
         PTHREAD_ERROR_HELPER(ret, "Could not receive users already in world");
 
-        msg_len=ret;
+        msg_len=bytes_read;
 
 
         // to send its texture
@@ -498,6 +500,7 @@ int main(int argc, char **argv) {
 	int my_id = -2;
 	Image* my_texture_from_server = NULL;
     size_t msg_len;                 //utile dichiararla qui, visto che andrà usata in ogni caso
+    int bytes_read = 0;
 
 	if (login_state == 0){
 		printf("You're signed up with user: %s, welcome to the game!\n", username);	//password salvata
@@ -539,18 +542,18 @@ int main(int argc, char **argv) {
 
         free(idPacket_request);
 
-		ret = recv_TCP_packet(socket_desc, idPacket, 0);
+		ret = recv_TCP_packet(socket_desc, idPacket, 0, &bytes_read);
 		ERROR_HELPER(ret, "Could not read id from socket");
 
-        if (DEBUG) printf("[IDPACKET] Byte letti: %d\n", (int) ret);
+        if (DEBUG) printf("[IDPACKET] Byte letti: %d\n", (int) bytes_read);
 
         if (DEBUG) printf("[IDPACKET] idPacket ricevuto\n");
 
-        if (ret != (int) sizeof(IdPacket)){
+        if (bytes_read != (int) sizeof(IdPacket)){
             if (DEBUG) printf("[IDPACKET] C'è un problema! Il numero di byte arrivati non corrisponde!\n");
         }
 
-		msg_len=ret;
+		msg_len=bytes_read;
 
 		IdPacket* id = (IdPacket*) Packet_deserialize(idPacket, msg_len);
 		if (id->header.type!=GetId) ERROR_HELPER(-1,"Error in packet type \n");
@@ -579,8 +582,8 @@ int main(int argc, char **argv) {
 		size_t texture_for_server_len = Packet_serialize(texture_for_server, &(my_texture->header));
 
         /*if (DEBUG) {
-            int i; 
-            for (i=0; i < texture_for_server_len; i++) 
+            int i;
+            for (i=0; i < texture_for_server_len; i++)
                 printf("%d", (int)texture_for_server[i]);
             printf("\n");
         }*/
@@ -615,10 +618,12 @@ int main(int argc, char **argv) {
 
 		char *my_texture_server = (char *)malloc(DIM_BUFF*sizeof(char));
 
-		ret = recv_TCP_packet(socket_desc, my_texture_server, 0);
+        bytes_read = 0;
+
+		ret = recv_TCP_packet(socket_desc, my_texture_server, 0, &bytes_read);
 		ERROR_HELPER(ret, "Could not read my texture from socket");
 
-        if (DEBUG) printf("[TEXTURE] Byte letti: %d\n", (int) ret);
+        if (DEBUG) printf("[TEXTURE] Byte letti: %d\n", bytes_read);
 
         if (DEBUG) printf("[TEXTURE] my_texture_server ricevuta\n");
 
@@ -626,7 +631,7 @@ int main(int argc, char **argv) {
             if (DEBUG) printf("[TEXTURE] C'è un problema! Il numero di byte arrivati non corrisponde!\n");
         }
 
-		msg_len=ret;
+		msg_len=bytes_read;
 
         if (DEBUG) printf("[TEXTURE] Deserializzo la mia texture ricevuta\n");
 
@@ -671,10 +676,10 @@ int main(int argc, char **argv) {
 
         free(request_texture_for_server);
 
-		ret = recv_TCP_packet(socket_desc, my_texture, 0);
+		ret = recv_TCP_packet(socket_desc, my_texture, 0, &bytes_read);
 		ERROR_HELPER(ret, "Could not read my texture from socket");
 
-		msg_len=ret;
+		msg_len=bytes_read;
 
 		ImagePacket* my_texture_received = (ImagePacket*) Packet_deserialize(my_texture,msg_len);
 		if(my_texture_received->header.type!=PostTexture && my_texture_received->id==0) ERROR_HELPER(-1,"error in communication \n");
@@ -745,14 +750,16 @@ int main(int argc, char **argv) {
 
     if (DEBUG) printf("[ELEVATION_MAP] Attendo il pacchetto di elevation_map dal server\n");
 
-	ret = recv_TCP_packet(socket_desc, elevation_map, 0);
+    bytes_read = 0;
+
+	ret = recv_TCP_packet(socket_desc, elevation_map, 0, &bytes_read);
 	ERROR_HELPER(ret, "Could not read elevation map from socket");
 
-    if (DEBUG) printf("[ELEVATION_MAP] Byte letti: %d\n", ret);
+    if (DEBUG) printf("[ELEVATION_MAP] Byte letti: %d\n", bytes_read);
 
     if (DEBUG) printf("[ELEVATION_MAP] Pacchetto ricevuto, deserializzo\n");
 
-	msg_len=ret;
+	msg_len=bytes_read;
 	ImagePacket* elevation = (ImagePacket*) Packet_deserialize(elevation_map,msg_len);
 	if(elevation->header.type!=PostElevation && elevation->id!=0) ERROR_HELPER(-1,"error in communication \n");
 
@@ -791,14 +798,16 @@ int main(int argc, char **argv) {
 
     free(request_texture_map_for_server);
 
-  	ret = recv_TCP_packet(socket_desc, texture_map, 0);
+    bytes_read = 0;
+
+  	ret = recv_TCP_packet(socket_desc, texture_map, 0, &bytes_read);
   	ERROR_HELPER(ret, "Could not read map texture from socket");
 
-    if (DEBUG) printf("[MAP] Byte letti: %d\n", ret);
+    if (DEBUG) printf("[MAP] Byte letti: %d\n", bytes_read);
 
     if (DEBUG) printf("[MAP] Pacchetto ricevuto. Deserializzo\n");
 
-	msg_len=ret;
+	msg_len=bytes_read;
 
 	ImagePacket* map = (ImagePacket*) Packet_deserialize(texture_map,msg_len);
 	if(map->header.type!=PostTexture && map->id!=0) ERROR_HELPER(-1,"error in protocol \n");
