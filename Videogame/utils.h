@@ -62,6 +62,10 @@ typedef struct movement_intentions{// lista di intenzioni di movimento che si ac
 
 int recv_TCP(int socket, char *buf, size_t len, int flags);
 
+// Funzione di ricezione TCP per i pacchetti
+
+int recv_TCP_packet(int socket, char* buf, int flags);
+
 // Funzione di invio TCP
 
 int send_TCP(int socket, const char *buf, size_t len, int flags);
@@ -69,6 +73,10 @@ int send_TCP(int socket, const char *buf, size_t len, int flags);
 // Funzione di ricezione UDP
 
 int recv_UDP(int socket, char *buf, size_t len, int flags, struct sockaddr *src_addr, socklen_t *addrlen);
+
+// Funzione di ricezione TCP per i pacchetti
+
+int recv_UDP_packet(int socket, char *buf, int flags, struct sockaddr *src_addr, socklen_t *addrlen);
 
 // Funzione di invio UDP
 

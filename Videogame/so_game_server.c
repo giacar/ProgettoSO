@@ -257,9 +257,9 @@ void* thread_server_TCP(void* args){
 
         if (DEBUG) printf("[IDPACKET] Sono entrato nel <if (login_status == 0)>\n");
 
-        char idPacket[DIM_BUFF];
+        char *idPacket = (char *)malloc(DIM_BUFF*sizeof(char));
 
-        ret = recv_TCP(socket, idPacket, sizeof(IdPacket)+1, 0);
+        ret = recv_TCP_packet(socket, idPacket, 0);
         if (ret == -2){
             printf("Could not receive id request from client\n");
             pthread_exit(NULL);
@@ -270,16 +270,16 @@ void* thread_server_TCP(void* args){
 
         if (DEBUG) printf("[IDPACKET] Byte letti: %d\n", ret);
 
-        if (ret != (int) sizeof(IdPacket)+1){
+        if (ret != (int) sizeof(IdPacket)){
             if (DEBUG) printf("[IDPACKET] C'è un errore! Il numero di byte arrivati non corrisponde!\n");
         }
 
-        size_t msg_len = ret-1;
-        /*idPacket[msg_len] = '\0';
-        msg_len++;      Ho messo nel client lo '\0' */
+        size_t msg_len = ret;
 
         IdPacket* id = (IdPacket*) Packet_deserialize(idPacket, msg_len);
         if (id->header.type != GetId) PTHREAD_ERROR_HELPER(-1, "Error in packet type (client id)");
+
+        free(idPacket);
 
         if (DEBUG) printf("[IDPACKET] Ho deserializzato l'idPacket\n");
 
@@ -289,9 +289,8 @@ void* thread_server_TCP(void* args){
             id->id = idx;
             size_t idPacket_response_len;
             idPacket_response_len = Packet_serialize(idPacket, &(id->header));
-            idPacket[idPacket_response_len] = '\0';
 
-            ret = send_TCP(socket, idPacket, idPacket_response_len+1, 0);
+            ret = send_TCP(socket, idPacket, idPacket_response_len, 0);
             if (ret == -2){
                 printf("Could not send id response to client\n");
                 pthread_exit(NULL);
@@ -302,7 +301,7 @@ void* thread_server_TCP(void* args){
 
             if (DEBUG) printf("[IDPACKET] Byte inviati: %d\n", (int) ret);
 
-            if (ret == idPacket_response_len+1){
+            if (ret == idPacket_response_len){
                 if (DEBUG) printf("[IDPACKET] Tutto ok\n");
             }
             else{
@@ -323,9 +322,9 @@ void* thread_server_TCP(void* args){
 
         if (DEBUG) printf("[TEXTURE] Attendo la texture dal client\n");
 
-        char texture_utente[DIM_BUFF];
+        char *texture_utente = (char *)malloc(DIM_BUFF*sizeof(char));
 
-        ret = recv_TCP(socket, texture_utente, sizeof(texture_utente)+1, 0);
+        ret = recv_TCP_packet(socket, texture_utente, 0);
         if (ret == -2){
             printf("Could not receive client texture\n");
             pthread_exit(NULL);
@@ -334,18 +333,18 @@ void* thread_server_TCP(void* args){
 
         if (DEBUG) printf("[TEXTURE] Byte letti: %d\n", (int) ret);
 
-        if (ret != (int) sizeof(texture_utente)+1){ //praticamente inutile
+        if (ret != (int) sizeof(texture_utente)){ //praticamente inutile
             if (DEBUG) printf("[TEXTURE] C'è un problema! Il numero di byte arrivati non corrisponde!\n");
         }
 
         if (DEBUG) printf("[TEXTURE] Texture ricevuta dal client. Deserializzo.\n");
 
-        msg_len = ret-1;
-        /*texture_utente[msg_len] = '\0';
-        msg_len++;*/ // Ho aggiunto '\0' nel client
+        msg_len = ret;
 
         ImagePacket* client_texture = (ImagePacket*) Packet_deserialize(texture_utente, msg_len);
         if (client_texture->header.type!=PostTexture) PTHREAD_ERROR_HELPER(-1, "Error in client texture packet!");
+
+        free(texture_utente);
 
         if (DEBUG) printf("[TEXTURE] Texture deserializzata\n");
 
@@ -353,19 +352,19 @@ void* thread_server_TCP(void* args){
         client[idx].texture = client_texture->image;
         client[idx].status = 1;
         client[idx].addr=arg->addr;
+        client[idx].addr->sin_port=htons(SERVER_PORT_UDP_W);
         client[idx].socket_TCP=arg->socket_desc_TCP_client;
 
         if (DEBUG) printf("[TEXTURE] Serializzo la texture del client\n");
 
         size_t texture_utente_len;
         texture_utente_len = Packet_serialize(texture_utente, &(client_texture->header));
-        texture_utente[texture_utente_len] = '\0';
 
         if (DEBUG) printf("[TEXTURE] Texture serializzata\n");
 
         if (DEBUG) printf("[TEXTURE] Invio al client la sua texture\n");
 
-        ret = send_TCP(socket, texture_utente, texture_utente_len+1, 0);
+        ret = send_TCP(socket, texture_utente, texture_utente_len, 0);
         if (ret == -2){
             printf("Could not send client texture\n");
             client[idx].status = 0;
@@ -375,7 +374,7 @@ void* thread_server_TCP(void* args){
 
         if (DEBUG) printf("[TEXTURE] Byte inviati: %d\n", (int) ret);
 
-        if (ret == texture_utente_len+1){
+        if (ret == texture_utente_len){
             if (DEBUG) printf("[TEXTURE] Tutto ok\n");
         }
         else{
@@ -411,22 +410,22 @@ void* thread_server_TCP(void* args){
          * in pratica gli inviamo tutto insieme
         **/
 
-        char idPacket_buf[DIM_BUFF];
+        char *idPacket_buf = (char *)malloc(DIM_BUFF*sizeof(char));
         size_t idPacket_buf_len;
 
-        ret = recv_TCP(socket, idPacket_buf, sizeof(IdPacket), 0);
+        ret = recv_TCP_packet(socket, idPacket_buf, 0);
         if (ret == -2) {
             printf("Could not receive IdPacket from client\n");
             pthread_exit(NULL);
         }
         else PTHREAD_ERROR_HELPER(ret, "Could not receive IdPacket from client");
 
-        size_t msg_len = ret-1;
-        /*idPacket_buf[msg_len] = '\0';
-        msg_len++;*/
+        size_t msg_len = ret;
 
         IdPacket* received = (IdPacket*) Packet_deserialize(idPacket_buf, msg_len);
         if (received->header.type != GetTexture) PTHREAD_ERROR_HELPER(-1, "Connection error (texture request)");
+
+        free(idPacket_buf);
 
         client[idx].status = 1;
         client[idx].addr=arg->addr;
@@ -438,12 +437,11 @@ void* thread_server_TCP(void* args){
         client_texture->id = idx;
         client_texture->image = client[idx].texture;
         client_texture->header.type = PostTexture;
-        client_texture->header.size = sizeof(ImagePacket);
+        //client_texture->header.size = sizeof(ImagePacket);
 
         idPacket_buf_len = Packet_serialize(idPacket_buf, &(client_texture->header));
-        idPacket_buf[idPacket_buf_len] = '\0';
 
-        ret = send_TCP(socket, idPacket_buf, idPacket_buf_len+1, 0);
+        ret = send_TCP(socket, idPacket_buf, idPacket_buf_len, 0);
         if (ret == -2) {
             printf("Could not send client texture and id\n");
             client[idx].status = 0;
@@ -465,10 +463,10 @@ void* thread_server_TCP(void* args){
 
     //utente invia la richiesta di elevation map
 
-    char elevation_map_buffer[DIM_BUFF];
+    char *elevation_map_buffer = (char *)malloc(DIM_BUFF*sizeof(char));
     size_t elevation_map_len;
 
-    ret = recv_TCP(socket, elevation_map_buffer, sizeof(IdPacket)+1, 0);
+    ret = recv_TCP_packet(socket, elevation_map_buffer, 0);
     if (ret == -2) {
         printf("Could not receive elevation map request\n");
         client[idx].status = 0;
@@ -480,12 +478,12 @@ void* thread_server_TCP(void* args){
 
     if (DEBUG) printf("[ELEVATION_MAP] Richiesta ricevuta. Deserializzo il pacchetto\n");
 
-    size_t msg_len = ret-1;
-    /*elevation_map_buffer[msg_len] = '\0';
-    msg_len++;*/
+    size_t msg_len = ret;
 
     IdPacket* elevation= (IdPacket*) Packet_deserialize(elevation_map_buffer,msg_len);
     if(elevation->header.type!=GetElevation) ERROR_HELPER(-1,"error in communication \n");
+
+    free(elevation_map_buffer);
 
     if (DEBUG) printf("[ELEVATION_MAP] Deserializzazione completata\n");
 
@@ -499,16 +497,15 @@ void* thread_server_TCP(void* args){
     ele_map->image = elevation_map;
     ele_map->id = id;
     ele_map->header.type = PostElevation;
-    ele_map->header.size = sizeof(ImagePacket);
+    //ele_map->header.size = sizeof(ImagePacket);
 
     if (DEBUG) printf("[ELEVATION_MAP] Pacchetto creato, serializzo\n");
 
     elevation_map_len = Packet_serialize(elevation_map_buffer, &(ele_map->header));
-    elevation_map_buffer[elevation_map_len] = '\0';
 
     if (DEBUG) printf("[ELEVATION_MAP] Serializzazione completata, invio il pacchetto\n");
 
-    ret = send_TCP(socket, elevation_map_buffer, elevation_map_len+1, 0);
+    ret = send_TCP(socket, elevation_map_buffer, elevation_map_len, 0);
     if (ret == -2) {
         printf("Could not send elevation map\n");
         client[idx].status = 0;
@@ -524,10 +521,10 @@ void* thread_server_TCP(void* args){
 
     if (DEBUG) printf("[MAP] Attendo la richiesta di mappa dal client\n");
 
-    char map_buffer[DIM_BUFF];
+    char *map_buffer = (char *)malloc(DIM_BUFF*sizeof(char));
     //size_t map_len;
 
-    ret = recv_TCP(socket, map_buffer, sizeof(IdPacket)+1, 0);
+    ret = recv_TCP_packet(socket, map_buffer, 0);
     if (ret == -2) {
         printf("Could not receive map request\n");
         client[idx].status = 0;
@@ -539,12 +536,12 @@ void* thread_server_TCP(void* args){
 
     if (DEBUG) printf("[MAP] Richiesta ricevuta. Deserializzo\n");
 
-    msg_len = ret-1;
-    /*map_buffer[msg_len] = '\0';
-    msg_len++;*/
+    msg_len = ret;
 
     IdPacket* map_request = (IdPacket*) Packet_deserialize(map_buffer, msg_len);
     if(map_request->header.type!=GetTexture)   ERROR_HELPER(-1, "Connection error (map request)");
+
+    free(map_buffer);
 
     if (DEBUG) printf("[MAP] Deserializzazione completata\n");
 
@@ -554,7 +551,7 @@ void* thread_server_TCP(void* args){
 
     //invio mappa
 
-    char mappa[DIM_BUFF];
+    char *mappa = (char *)malloc(DIM_BUFF*sizeof(char));
     size_t mappa_len;
 
     ImagePacket* map_packet = (ImagePacket*) malloc(sizeof(ImagePacket));
@@ -563,18 +560,17 @@ void* thread_server_TCP(void* args){
     map_packet->id = id;
     map_packet->image = map;
     map_packet->header.type = PostTexture;
-    map_packet->header.size = sizeof(ImagePacket);
+    //map_packet->header.size = sizeof(ImagePacket);
 
     if (DEBUG) printf("[MAP] Pacchetto mappa creato. Serializzo\n");
 
     mappa_len = Packet_serialize(mappa, &(map_packet->header));
-    mappa[mappa_len] = '\0';
 
-    if (DEBUG) printf("[MAP] Serializzazione completata. Sto per inviare: %d byte\n", (int) mappa_len+1);
+    if (DEBUG) printf("[MAP] Serializzazione completata. Sto per inviare: %d byte\n", (int) mappa_len);
 
     if (DEBUG) printf("[MAP] Invio del pacchetto in corso!\n");
 
-    ret = send_TCP(socket, mappa, mappa_len+1, 0);
+    ret = send_TCP(socket, mappa, mappa_len, 0);
     if (ret == -2){
         printf("Could not send map to client\n");
         client[idx].status = 0;
@@ -586,15 +582,17 @@ void* thread_server_TCP(void* args){
 
     if (DEBUG) printf("[MAP] Invio del pacchetto avvenuto con successo!\n");
 
+    free(mappa);
+
     /** Ultimata la connessione e l'inizializzazione del client, c'è bisogno di inviargli lo stato di tutti gli altri client già connessi **/
 
     ImagePacket* client_alive = (ImagePacket*) malloc(sizeof(ImagePacket));
     PacketHeader client_alive_header;
     client_alive->header = client_alive_header;
     client_alive->header.type=PostTexture;
-    client_alive->header.size=sizeof(ImagePacket);
+    //client_alive->header.size=sizeof(ImagePacket);
 
-    char client_alive_buf[DIM_BUFF];
+    char *client_alive_buf = (char *)malloc(DIM_BUFF*sizeof(char));
     size_t alive_len;
 
     //inviamo  le texture di tutti i client connessi
@@ -605,9 +603,8 @@ void* thread_server_TCP(void* args){
             client_alive->image = client[i].texture;
 
             alive_len = Packet_serialize(client_alive_buf, &(client_alive->header));
-            client_alive_buf[alive_len] = '\0';
 
-            ret = send_TCP(socket, client_alive_buf, alive_len+1, 0);
+            ret = send_TCP(socket, client_alive_buf, alive_len, 0);
             if (ret == -2){
                 printf("Could not send user data to client\n");
                 client[idx].status = 0;
@@ -617,23 +614,22 @@ void* thread_server_TCP(void* args){
         }
     }
 
-    //Packet_free(&client_alive_header);  DISCUTERNE L'APPLICAZIONE
+    free(client_alive_buf);
 
     //inviamo a tutti i client attualmente connessi la texture del nuovo client appena arrivato
     ImagePacket* texture=(ImagePacket*)malloc(sizeof(ImagePacket));
 	PacketHeader head;
 	head.type=PostTexture;
-    head.size=sizeof(ImagePacket);
+    //head.size=sizeof(ImagePacket);
 	texture->header=head;
 	texture->id=idx;
 	texture->image=client[idx].texture;
-	char texture_buffer[DIM_BUFF];
+	char *texture_buffer = (char *)malloc(DIM_BUFF*sizeof(char));
 	size_t texture_len=Packet_serialize(texture_buffer,&(texture->header));
-    texture_buffer[texture_len] = '\0';
 
     for(i=0;i<MAX_USER_NUM;i++){
 		if(i!=idx && client[i].status == 1){
-			ret = send_TCP(client[i].socket_TCP, texture_buffer, texture_len+1, 0);
+			ret = send_TCP(client[i].socket_TCP, texture_buffer, texture_len, 0);
             if (ret == -2){
                 printf("Could not send user data to client\n");
                 client[i].status = 0;
@@ -643,22 +639,21 @@ void* thread_server_TCP(void* args){
         }
     }
 
-    //Packet_free(&head);
+    free(texture_buffer);
 
-	char test_buf[DIM_BUFF];
+	char *test_buf = (char *)malloc(DIM_BUFF*sizeof(char));
 	size_t test_len;
 
 	IdPacket* test=(IdPacket*)malloc(sizeof(IdPacket));
 	PacketHeader testh;
 	testh.type=GetId;
-	testh.size=sizeof(IdPacket);
+	//testh.size=sizeof(IdPacket);
 	test->header=testh;
 	test->id=90;
 
 	test_len=Packet_serialize(test_buf,&(test->header));
-    test_buf[test_len] = '\0';
 	while(1){
-		ret = send_TCP(socket, test_buf, test_len+1, 0);
+		ret = send_TCP(socket, test_buf, test_len, 0);
 		if (ret == -2){
 			for(i=0;i<MAX_USER_NUM;i++){
 				if(client[i].status==1 && i!=idx){
@@ -672,6 +667,8 @@ void* thread_server_TCP(void* args){
 		else PTHREAD_ERROR_HELPER(ret, "Could not send user data to client\n");
 		sleep(1000);
 	}
+
+    free(test_buf);
 
     /** FINE LAVORO TCP **/
 
@@ -704,7 +701,7 @@ void* thread_server_UDP_sender(void* args){
 } VehicleUpdatePacket;**/
 
     int ret, socket = 0;
-    char msg[DIM_BUFF];
+    char *msg = (char *)malloc(DIM_BUFF*sizeof(char));
 
     PacketHeader* head = (PacketHeader*)malloc(sizeof(PacketHeader));
 
@@ -713,7 +710,7 @@ void* thread_server_UDP_sender(void* args){
 
     thread_server_UDP_args *arg = (thread_server_UDP_args*) args;
 
-    socket = arg->socket_desc_UDP_server_M;
+    socket = arg->socket_desc_UDP_server_W;
     clients* client=arg->list;
 
 
@@ -746,20 +743,19 @@ void* thread_server_UDP_sender(void* args){
 
 		WorldUpdatePacket* worldup=(WorldUpdatePacket*)malloc(sizeof(WorldUpdatePacket));
 		head->type=WorldUpdate;
-		head->size=sizeof(WorldUpdatePacket)+num_connected*sizeof(ClientUpdate);
+		//head->size=sizeof(WorldUpdatePacket)+num_connected*sizeof(ClientUpdate);
 		memcpy(&(worldup->header), head, sizeof(PacketHeader)); //worldup->header=head;
 		worldup->num_vehicles=num_connected;
 		worldup->updates=update;
 
 		size_t packet_len=Packet_serialize(msg,&worldup->header);
-        msg[packet_len] = '\0';
 
 		// invio a tutti i connessi
 
 
 		for(i=0;i<MAX_USER_NUM;i++){
 			if(client[i].status==1){
-				ret = send_UDP(socket,msg,packet_len+1,0,(const struct sockaddr*)client[i].addr,(socklen_t)sizeof(struct sockaddr_in));
+				ret = send_UDP(socket,msg,packet_len,0,(const struct sockaddr*)client[i].addr,(socklen_t)sizeof(struct sockaddr_in));
 				if (ret == -2) {
 					printf("Could not send user data to client\n");
 					ret = sem_post(&sem_thread_UDP);
@@ -771,7 +767,6 @@ void* thread_server_UDP_sender(void* args){
         //faccio la free delle strutture dati che non mi servono più (tanto verranno ricreate alla prossima ciclata)
 
         free(update);
-        //Packet_free(head);
 
         //sblocco il semaforo
 
@@ -782,21 +777,23 @@ void* thread_server_UDP_sender(void* args){
         sleep(500);
     }
 
+    free(msg);
+
 }
 
 void* thread_server_UDP_receiver(void* args){
 
     int ret, socket  = 0;
-    char msg[DIM_BUFF];
+    char *msg = (char *)malloc(DIM_BUFF*sizeof(char));
 
     PacketHeader *head;
     VehicleUpdatePacket *packet;
 
     thread_server_UDP_args *arg = (thread_server_UDP_args*) args;
 
-    socket = arg->socket_desc_UDP_server_W;
-    struct sockaddr_in server_struct_UDP_W = arg->server_addr_UDP_W;
-    int slen=sizeof(server_struct_UDP_W);
+    socket = arg->socket_desc_UDP_server_M;
+    struct sockaddr_in server_struct_UDP_M = arg->server_addr_UDP_M;
+    int slen=sizeof(server_struct_UDP_M);
 
 
 	//ricevere tutte le intenzioni di movimento e le sostituisce nei veicoli
@@ -804,7 +801,7 @@ void* thread_server_UDP_receiver(void* args){
 
 
         while(1) {//dobbiamo gestire ancora la chiusura del server
-            ret = recv_UDP(socket, msg, 1, 0, (struct sockaddr *)& server_struct_UDP_W,(socklen_t*)&slen);
+            ret = recv_UDP(socket, msg, 1, 0, (struct sockaddr *)& server_struct_UDP_M,(socklen_t*)&slen);
             if (ret == -2) {
                 printf("Could not send user data to client\n");
             }
@@ -826,6 +823,8 @@ void* thread_server_UDP_receiver(void* args){
 			ret = sem_post(&sem_thread_UDP);
 			ERROR_HELPER(ret, "Failed to post sem_thread_UDP in thread_UDP_receiver");
     }
+
+    free(msg);
 
 }
 

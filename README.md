@@ -52,4 +52,5 @@ Please see the [DOCUMENTATION.md](Documentation.md) file for details
 
 * <s>BUG nella registrazione dell'username e password nel server</s>
 * <s>BUG nella parte successiva di richiesta ID</s>
-* BUG di stack smashing
+* <s>BUG di stack smashing</s>
+* BUG nell' invio di pacchetti di dimensione non nota a priori

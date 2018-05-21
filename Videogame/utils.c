@@ -7,6 +7,27 @@
 
 #include "utils.h"
 #include "common.h"
+#include "so_game_protocol.h"
+
+int recv_TCP_packet(int socket, char* buf, int flags) {
+	int ret, packet_len, bytes_read = 0;
+
+	do {
+		ret = recv(socket, buf, sizeof(PacketHeader), flags);
+	} while (ret == -1 && errno == EINTR);
+
+	bytes_read += ret;
+	PacketHeader *head = Packet_deserialize(buf, sizeof(PacketHeader));
+	packet_len = head->size;
+
+	do {
+		ret = recv(socket, buf+bytes_read, packet_len-bytes_read, flags);
+	} while (ret == -1 && errno == EINTR);
+
+	bytes_read += ret;
+
+	return ret;
+}
 
 int recv_TCP(int socket, char *buf, size_t len, int flags) {
 	int ret, bytes_read = 0, finito = 0;
@@ -35,7 +56,7 @@ int recv_TCP(int socket, char *buf, size_t len, int flags) {
 		while (!finito) {
 			ret = recv(socket, buf+bytes_read, 1, flags);
 
-			if (DEBUG) printf("[RECV_TCP] Ho ricevuto byte\n");
+			if (DEBUG) printf("[RECV_TCP] Ho ricevuto byte: %d\n", (int)buf[bytes_read]);
 
 			if (errno == EINTR) continue;
 			if (errno == ENOTCONN) {
@@ -81,6 +102,26 @@ int send_TCP(int socket, const char *buf, size_t len, int flags) {
 	}
 
 	ret = bytes_sent;
+
+	return ret;
+}
+
+int recv_UDP_packet(int socket, char *buf, int flags, struct sockaddr *src_addr, socklen_t *addrlen) {
+	int ret, packet_len, bytes_read = 0;
+
+	do {
+		ret = recvfrom(socket, buf, sizeof(PacketHeader), flags, src_addr, addrlen);
+	} while (ret == -1 && errno == EINTR);
+
+	bytes_read += ret;
+	PacketHeader *head = Packet_deserialize(buf, sizeof(PacketHeader));
+	packet_len = head->size;
+
+	do {
+		ret = recvfrom(socket, buf+bytes_read, packet_len-bytes_read, flags, src_addr, addrlen);
+	} while (ret == -1 && errno == EINTR);
+
+	bytes_read += ret;
 
 	return ret;
 }
