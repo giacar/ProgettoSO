@@ -353,8 +353,6 @@ void* thread_server_TCP(void* args){
         client[idx].id = idx;
         client[idx].texture = client_texture->image;
         client[idx].status = 1;
-        client[idx].addr=arg->addr;
-        client[idx].addr->sin_port=htons(SERVER_PORT_UDP_W);
         client[idx].socket_TCP=arg->socket_desc_TCP_client;
 
         if (DEBUG) printf("[TEXTURE] Serializzo la texture del client\n");
@@ -388,7 +386,7 @@ void* thread_server_TCP(void* args){
         }
 
         if (DEBUG) printf("[TEXTURE] Texture inviata al client con successo\n");
-        free(texture_utente);
+
 
         if (DEBUG) printf("[TEXTURE] Creo il veicolo del client!\n");
 
@@ -431,7 +429,6 @@ void* thread_server_TCP(void* args){
         free(idPacket_buf);
 
         client[idx].status = 1;
-        client[idx].addr=arg->addr;
         client[idx].socket_TCP=arg->socket_desc_TCP_client;
 
         ImagePacket* client_texture = (ImagePacket*) malloc(sizeof(ImagePacket));
@@ -710,14 +707,13 @@ void* thread_server_UDP_sender(void* args){
     int ret, socket = 0;
     char *msg = (char *)malloc(DIM_BUFF*sizeof(char));
 
-    PacketHeader* head = (PacketHeader*)malloc(sizeof(PacketHeader));
 
 
     //bisogna estrapolare il veicolo identificato dall'id, aggiornarlo basandoci sulle nuove forze applicate, e infilarlo dentro il world_update_packet
 
     thread_server_UDP_args *arg = (thread_server_UDP_args*) args;
 
-    socket = arg->socket_desc_UDP_server_W;
+    socket = arg->socket_desc_UDP_server;
     clients* client=arg->list;
 
 
@@ -749,9 +745,8 @@ void* thread_server_UDP_sender(void* args){
 		}
 
 		WorldUpdatePacket* worldup=(WorldUpdatePacket*)malloc(sizeof(WorldUpdatePacket));
-		head->type=WorldUpdate;
+		worldup->header.type=WorldUpdate;
 		//head->size=sizeof(WorldUpdatePacket)+num_connected*sizeof(ClientUpdate);
-		memcpy(&(worldup->header), head, sizeof(PacketHeader)); //worldup->header=head;
 		worldup->num_vehicles=num_connected;
 		worldup->updates=update;
 
@@ -761,7 +756,7 @@ void* thread_server_UDP_sender(void* args){
 
 
 		for(i=0;i<MAX_USER_NUM;i++){
-			if(client[i].status==1){
+			if(client[i].status==1 && client[i].addr!=NULL){
 				ret = send_UDP(socket,msg,packet_len,0,(const struct sockaddr*)client[i].addr,(socklen_t)sizeof(struct sockaddr_in));
 				if (ret == -2) {
 					printf("Could not send user data to client\n");
@@ -793,14 +788,14 @@ void* thread_server_UDP_receiver(void* args){
     int ret, socket  = 0;
     char *msg = (char *)malloc(DIM_BUFF*sizeof(char));
 
-    PacketHeader *head;
     VehicleUpdatePacket *packet;
 
     thread_server_UDP_args *arg = (thread_server_UDP_args*) args;
+    clients* client=arg->list;
 
-    socket = arg->socket_desc_UDP_server_M;
-    struct sockaddr_in server_struct_UDP_M = arg->server_addr_UDP_M;
-    int slen=sizeof(server_struct_UDP_M);
+    socket = arg->socket_desc_UDP_server;
+    struct sockaddr_in* server_struct_UDP=(struct sockaddr_in*)malloc(sizeof(struct sockaddr_in));
+    int slen=sizeof(struct sockaddr_in);
 
 
 	//ricevere tutte le intenzioni di movimento e le sostituisce nei veicoli
@@ -808,16 +803,22 @@ void* thread_server_UDP_receiver(void* args){
 
 
         while(1) {//dobbiamo gestire ancora la chiusura del server
-            ret = recv_UDP(socket, msg, 1, 0, (struct sockaddr *)& server_struct_UDP_M,(socklen_t*)&slen);
+            ret = recv_UDP_packet(socket, msg, 0, (struct sockaddr *)& server_struct_UDP,(socklen_t*)&slen);
             if (ret == -2) {
                 printf("Could not send user data to client\n");
             }
 
             // deserializzo il pacchetto appena ricevuto
-            head = Packet_deserialize(msg, sizeof(msg)-1);
+            packet = (VehicleUpdatePacket *)Packet_deserialize(msg, ret);
 
-            // pacchetto di aggiornamento del veicolo
-            packet = (VehicleUpdatePacket *) head;
+            if(client[packet->id].addr!=NULL){
+                free(server_struct_UDP);
+            }
+            else{
+                client[packet->id].addr=server_struct_UDP;
+            }
+
+
 
             ret = sem_wait(&sem_thread_UDP);
 			PTHREAD_ERROR_HELPER(ret, "Failed to wait sem_thread_UDP in thread_UDP_receiver");
@@ -905,45 +906,25 @@ int main(int argc, char **argv) {
 
     //definisco descrittore server socket e struttura per bind
 
-    int server_socket_UDP_M;
-    struct sockaddr_in server_addr_UDP_M = {0};
+    int server_socket_UDP;
+    struct sockaddr_in server_addr_UDP = {0};
 
     //imposto i valori della struttura
 
-    server_addr_UDP_M.sin_addr.s_addr=INADDR_ANY;
-    server_addr_UDP_M.sin_family=AF_INET;
-    server_addr_UDP_M.sin_port=htons(SERVER_PORT_UDP_M);
+    server_addr_UDP.sin_addr.s_addr=INADDR_ANY;
+    server_addr_UDP.sin_family=AF_INET;
+    server_addr_UDP.sin_port=htons(SERVER_PORT_UDP);
 
     //creo la socket
 
-    server_socket_UDP_M=socket(AF_INET,SOCK_DGRAM,0);
-    ERROR_HELPER(server_socket_UDP_M,"error creating socket UDP \n");
+    server_socket_UDP=socket(AF_INET,SOCK_DGRAM,0);
+    ERROR_HELPER(server_socket_UDP,"error creating socket UDP \n");
 
     // faccio la bind
 
-    ret=bind(server_socket_UDP_M,(struct sockaddr*) &server_addr_UDP_M,sizeof(struct sockaddr_in));
-    ERROR_HELPER(ret,"error binding socket  UDP \n");
+    //ret=bind(server_socket_UDP,(struct sockaddr*) &server_addr_UDP,sizeof(struct sockaddr_in));
+    //ERROR_HELPER(ret,"error binding socket  UDP \n");
 
-    //definisco descrittore server socket e struttura per bind
-
-    int server_socket_UDP_W;
-    struct sockaddr_in server_addr_UDP_W = {0};
-
-    //imposto i valori della struttura
-
-    server_addr_UDP_W.sin_addr.s_addr=INADDR_ANY;
-    server_addr_UDP_W.sin_family=AF_INET;
-    server_addr_UDP_W.sin_port=htons(SERVER_PORT_UDP_W);
-
-    //creo la socket
-
-    server_socket_UDP_W=socket(AF_INET,SOCK_DGRAM,0);
-    ERROR_HELPER(server_socket_UDP_W,"error creating socket UDP \n");
-
-    // faccio la bind
-    /*
-    ret=bind(server_socket_UDP_W,(struct sockaddr*) &server_addr_UDP_W,sizeof(struct sockaddr_in));
-    ERROR_HELPER(ret,"error binding socket  UDP \n");*/
 
     //creo i thread che si occuperanno di ricevere le forze dai vari client e di inviare un world update packet a tutti i client (UDP)
 
@@ -955,10 +936,8 @@ int main(int argc, char **argv) {
     pthread_t thread_UDP_sender;
 
     thread_server_UDP_args* args_UDP=(thread_server_UDP_args*)malloc(sizeof(thread_server_UDP_args));
-    args_UDP->socket_desc_UDP_server_W=server_socket_UDP_W;
-    args_UDP->socket_desc_UDP_server_M=server_socket_UDP_M;
-    args_UDP->server_addr_UDP_W = server_addr_UDP_W;
-    args_UDP->server_addr_UDP_M = server_addr_UDP_M;
+    args_UDP->socket_desc_UDP_server=server_socket_UDP;
+    args_UDP->server_addr_UDP = server_addr_UDP;
     args_UDP->list=client;
 
     //creo i thread
@@ -1017,13 +996,14 @@ int main(int argc, char **argv) {
 
         client_socket=accept(server_socket_TCP,(struct sockaddr*) &client_addr,(socklen_t*)&slen);
         ERROR_HELPER(client_socket,"error accepting connections \n");
+        
+
 
         //lancio il thread che si occuperà di parlare poi con il singolo client che si è connesso
 
         pthread_t thread;
 
         thread_server_TCP_args* args_TCP=(thread_server_TCP_args*)malloc(sizeof(thread_server_TCP_args));
-        args_TCP->addr=client_addr;
         args_TCP->socket_desc_TCP_client = client_socket;
         args_TCP->list=client;
         args_TCP->elevation_map = surface_elevation;

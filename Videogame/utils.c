@@ -17,7 +17,7 @@ int recv_TCP_packet(int socket, char* buf, int flags, int* bytes_read) {
 	} while (ret == -1 && errno == EINTR);
 
 	byte_letti += ret;
-	PacketHeader *head = Packet_deserialize(buf, sizeof(PacketHeader));
+	PacketHeader *head = (PacketHeader*)buf;
 	packet_len = head->size;
 
 	do {
@@ -116,7 +116,7 @@ int recv_UDP_packet(int socket, char *buf, int flags, struct sockaddr *src_addr,
 	} while (ret == -1 && errno == EINTR);
 
 	bytes_read += ret;
-	PacketHeader *head = Packet_deserialize(buf, sizeof(PacketHeader));
+	PacketHeader *head = (PacketHeader*)buf;
 	packet_len = head->size;
 
 	do {

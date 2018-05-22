@@ -15,29 +15,24 @@ typedef struct clients{
 
 typedef struct thread_server_TCP_args{
     int socket_desc_TCP_client;
-    struct sockaddr_in* addr; //to send data over udp socket to the client
     Image* elevation_map;
     Image* map;
     clients* list;
 }thread_server_TCP_args;
 
 typedef struct thread_server_UDP_args{
-    int socket_desc_UDP_server_W;
-    int socket_desc_UDP_server_M;
-    struct sockaddr_in server_addr_UDP_M; //necessario per la comunicazione UDP_M
-    struct sockaddr_in server_addr_UDP_W; //necessario per la comunicazione UDP_W
+    int socket_desc_UDP_server;
+    struct sockaddr_in server_addr_UDP; //necessario per la comunicazione UDP
     clients* list;
 }thread_server_UDP_args;
 
 typedef struct thread_client_args{
     Vehicle v;  //veicolo del client
     int socket_desc_TCP;    //descrittore della socket con cui comunicare col server(TCP)
-    int socket_desc_UDP_M;    //descritto socket per UDP per inviare intenzioni movimento
-    int socket_desc_UDP_W;    //descritto socket per UDP per ricevere aggiornamenti mondo
+    int socket_desc_UDP;    //descritto socket per UDP 
     int id;     //id ricevuto dal server
     Image* map_texture; //texture della mappa che andrà aggiornato
-    struct sockaddr_in server_addr_UDP_M;  //necessario per la comunicazione UDP_M
-    struct sockaddr_in server_addr_UDP_W;  //necessario per la comunicazione UDP_W
+    struct sockaddr_in server_addr_UDP;  //necessario per la comunicazione UDP
 
 }thread_client_args;
 
