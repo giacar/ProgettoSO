@@ -268,7 +268,7 @@ void* thread_server_TCP(void* args){
 
         if (DEBUG) printf("[IDPACKET] Byte letti: %d\n", bytes_read);
 
-        if (ret != (int) sizeof(IdPacket)){
+        if (bytes_read != (int) sizeof(IdPacket)){
             if (DEBUG) printf("[IDPACKET] C'è un errore! Il numero di byte arrivati non corrisponde!\n");
         }
 
@@ -277,7 +277,7 @@ void* thread_server_TCP(void* args){
         IdPacket* id = (IdPacket*) Packet_deserialize(idPacket, msg_len);
         if (id->header.type != GetId) PTHREAD_ERROR_HELPER(-1, "Error in packet type (client id)");
 
-        free(idPacket);
+        
 
         if (DEBUG) printf("[IDPACKET] Ho deserializzato l'idPacket\n");
 
@@ -316,6 +316,8 @@ void* thread_server_TCP(void* args){
             pthread_exit(NULL);
         }
 
+        free(idPacket);
+
         //nuovo utente: invia la sua texture
 
         if (DEBUG) printf("[TEXTURE] Attendo la texture dal client\n");
@@ -344,7 +346,7 @@ void* thread_server_TCP(void* args){
         ImagePacket* client_texture = (ImagePacket*) Packet_deserialize(texture_utente, msg_len);
         if (client_texture->header.type!=PostTexture) PTHREAD_ERROR_HELPER(-1, "Error in client texture packet!");
 
-        free(texture_utente);
+        
 
         if (DEBUG) printf("[TEXTURE] Texture deserializzata\n");
 
@@ -386,6 +388,7 @@ void* thread_server_TCP(void* args){
         }
 
         if (DEBUG) printf("[TEXTURE] Texture inviata al client con successo\n");
+        free(texture_utente);
 
         if (DEBUG) printf("[TEXTURE] Creo il veicolo del client!\n");
 
