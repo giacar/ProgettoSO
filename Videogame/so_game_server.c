@@ -485,7 +485,7 @@ void* thread_server_TCP(void* args){
     IdPacket* elevation= (IdPacket*) Packet_deserialize(elevation_map_buffer,msg_len);
     if(elevation->header.type!=GetElevation) ERROR_HELPER(-1,"error in communication \n");
 
-    free(elevation_map_buffer);
+    
 
     if (DEBUG) printf("[ELEVATION_MAP] Deserializzazione completata\n");
 
@@ -518,6 +518,8 @@ void* thread_server_TCP(void* args){
     if (DEBUG) printf("[ELEVATION_MAP] Byte inviati: %d\n", ret);
 
     if (DEBUG) printf("[ELEVATION_MAP] Invio del pacchetto avvenuto con successo\n");
+
+    free(elevation_map_buffer);
 
     //ricezione richiesta mappa e invio mappa
 
