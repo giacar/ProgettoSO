@@ -426,8 +426,6 @@ void* thread_server_TCP(void* args){
         IdPacket* received = (IdPacket*) Packet_deserialize(idPacket_buf, msg_len);
         if (received->header.type != GetTexture) PTHREAD_ERROR_HELPER(-1, "Connection error (texture request)");
 
-        free(idPacket_buf);
-
         client[idx].status = 1;
         client[idx].socket_TCP=arg->socket_desc_TCP_client;
 
@@ -455,6 +453,8 @@ void* thread_server_TCP(void* args){
 
 		//  add it to the world
 		World_addVehicle(&world, vehicle);
+
+        free(idPacket_buf);
 
     }
 
@@ -596,7 +596,6 @@ void* thread_server_TCP(void* args){
     PacketHeader client_alive_header;
     client_alive->header = client_alive_header;
     client_alive->header.type=PostTexture;
-    //client_alive->header.size=sizeof(ImagePacket);
 
     char *client_alive_buf = (char *)malloc(DIM_BUFF*sizeof(char));
     size_t alive_len;
@@ -609,6 +608,7 @@ void* thread_server_TCP(void* args){
             client_alive->image = client[i].texture;
 
             alive_len = Packet_serialize(client_alive_buf, &(client_alive->header));
+            if (DEBUG) printf("[ALIVE] Serializzato pacchetto da mandare\n");
 
             ret = send_TCP(socket, client_alive_buf, alive_len, 0);
             if (ret == -2){
@@ -617,6 +617,8 @@ void* thread_server_TCP(void* args){
                 pthread_exit(NULL);
             }
             else PTHREAD_ERROR_HELPER(ret, "Could not send user data to client\n");
+
+            if (DEBUG) printf("[ALIVE] Pacchetto inviato\n"); 
         }
     }
 
@@ -632,6 +634,7 @@ void* thread_server_TCP(void* args){
 	texture->image=client[idx].texture;
 	char *texture_buffer = (char *)malloc(DIM_BUFF*sizeof(char));
 	size_t texture_len=Packet_serialize(texture_buffer,&(texture->header));
+    if (DEBUG) printf("[ALIVE TEXTURE] Serializzato pacchetto\n");
 
     for(i=0;i<MAX_USER_NUM;i++){
 		if(i!=idx && client[i].status == 1){
@@ -642,6 +645,8 @@ void* thread_server_TCP(void* args){
                 pthread_exit(NULL);
             }
             else PTHREAD_ERROR_HELPER(ret, "Could not send user data to client\n");
+
+            if (DEBUG) printf("[ALIVE TEXTURE] Pacchetto inviato\n");
         }
     }
 
@@ -653,11 +658,11 @@ void* thread_server_TCP(void* args){
 	IdPacket* test=(IdPacket*)malloc(sizeof(IdPacket));
 	PacketHeader testh;
 	testh.type=GetId;
-	//testh.size=sizeof(IdPacket);
 	test->header=testh;
 	test->id=90;
 
 	test_len=Packet_serialize(test_buf,&(test->header));
+    if (DEBUG) printf("[TEST PACKET] Serializzato pacchetto di test\n");
 	while(1){
 		ret = send_TCP(socket, test_buf, test_len, 0);
 		if (ret == -2){
@@ -673,6 +678,8 @@ void* thread_server_TCP(void* args){
 		else PTHREAD_ERROR_HELPER(ret, "Could not send user data to client\n");
 		sleep(1000);
 	}
+
+    if (DEBUG) printf("[TEST PACKET] Pacchetti di test inviati\n");
 
     free(test_buf);
 
@@ -735,6 +742,9 @@ void* thread_server_UDP_sender(void* args){
 				num_connected++;
 			}
 		}
+
+        if (DEBUG) printf("[UDP SENDER] Ci sono %d client connessi al momento\n", num_connected);
+
 		ClientUpdate* update=(ClientUpdate*)malloc(num_connected*sizeof(ClientUpdate));
         for(i=0;i<MAX_USER_NUM;i++){
 			if(client[i].status==1){
@@ -746,16 +756,21 @@ void* thread_server_UDP_sender(void* args){
 			}
 		}
 
+        if (DEBUG) printf("[UDP SENDER] Aggiornate posizioni dei client nel mondo\n");
+
 		WorldUpdatePacket* worldup=(WorldUpdatePacket*)malloc(sizeof(WorldUpdatePacket));
+        PacketHeader head;
+        worldup->header = head;
 		worldup->header.type=WorldUpdate;
 		//head->size=sizeof(WorldUpdatePacket)+num_connected*sizeof(ClientUpdate);
 		worldup->num_vehicles=num_connected;
 		worldup->updates=update;
 
 		size_t packet_len=Packet_serialize(msg,&worldup->header);
+        
+        if (DEBUG) printf("[UDP SENDER] Il nuovo mondo è stato serializzato, lo invio a tutti i client connessi\n");
 
 		// invio a tutti i connessi
-
 
 		for(i=0;i<MAX_USER_NUM;i++){
 			if(client[i].status==1 && client[i].addr!=NULL){
@@ -768,15 +783,19 @@ void* thread_server_UDP_sender(void* args){
 			}
 		}
 
+        if (DEBUG) printf("[UDP SENDER] Inviato a tutti il nuovo mondo, ho finito\n");
+
         //faccio la free delle strutture dati che non mi servono più (tanto verranno ricreate alla prossima ciclata)
 
         free(update);
+        free(worldup);
 
         //sblocco il semaforo
 
-
         ret = sem_post(&sem_thread_UDP);
         ERROR_HELPER(ret, "Failed to post sem_thread_UDP in thread_UDP_sender");
+
+        if (DEBUG) printf("[UDP SENDER] Mi addormento per 500 ms\n");
 
         sleep(500);
     }
@@ -810,17 +829,20 @@ void* thread_server_UDP_receiver(void* args){
                 printf("Could not send user data to client\n");
             }
 
+            if (DEBUG) printf("[UDP RECEIVER] Ricevuto pacchetto\n");
+
             // deserializzo il pacchetto appena ricevuto
             packet = (VehicleUpdatePacket *)Packet_deserialize(msg, ret);
+
+            if (DEBUG) printf("[UDP RECEIVER] Pacchetto deserializzato\n");
 
             if(client[packet->id].addr!=NULL){
                 free(server_struct_UDP);
             }
             else{
                 client[packet->id].addr=server_struct_UDP;
+                if (DEBUG) printf("[UDP RECEIVER] Aggiornato indirizzo del client (primo pacchetto UDP)\n");
             }
-
-
 
             ret = sem_wait(&sem_thread_UDP);
 			PTHREAD_ERROR_HELPER(ret, "Failed to wait sem_thread_UDP in thread_UDP_receiver");
@@ -832,6 +854,8 @@ void* thread_server_UDP_receiver(void* args){
 
 			ret = sem_post(&sem_thread_UDP);
 			ERROR_HELPER(ret, "Failed to post sem_thread_UDP in thread_UDP_receiver");
+
+            if (DEBUG) printf("[UDP RECEIVER] Forze del client aggiornate\n");
     }
 
     free(msg);

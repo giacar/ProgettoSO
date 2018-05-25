@@ -14,11 +14,11 @@ Progetto di Sistemi Operativi del corso di laurea in Ingegneria Informatica e Au
 
 ## License
 
-This project is licensed under the MIT License - see the [LICENSE.md](LICENSE.md) file for details
+This project is licensed under the MIT License - see the [LICENSE](LICENSE.md) file for details
 
 ## Documentation
 
-Please see the [DOCUMENTATION.md](Documentation.md) file for details
+Please see the [DOCUMENTATION](Documentation.md) file for details
 
 ## Done
 
@@ -53,4 +53,7 @@ Please see the [DOCUMENTATION.md](Documentation.md) file for details
 * <s>BUG nella registrazione dell'username e password nel server</s>
 * <s>BUG nella parte successiva di richiesta ID</s>
 * <s>BUG di stack smashing</s>
-* BUG nell' invio di pacchetti di dimensione non nota a priori
+* <s>BUG nell' invio di pacchetti di dimensione non nota a priori</s>
+* Gestione della memoria
+* BUG world_addVehicle in caso di utente già registrato
+* BUG gli altri giocatori non sono visualizzati nel mondo

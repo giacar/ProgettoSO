@@ -19,14 +19,14 @@ int recv_TCP_packet(int socket, char* buf, int flags, int* bytes_read) {
 	byte_letti += ret;
 	PacketHeader *head = (PacketHeader*)buf;
 	packet_len = head->size;
-	printf("size è %d  ",packet_len);
+	if (DEBUG) printf("[RECV_TCP_PACKET] Header size = %d\n",packet_len);
 
 	do {
 		ret = recv(socket, buf+byte_letti, packet_len-byte_letti, flags);
 	} while (ret == -1 && errno == EINTR);
 
 	byte_letti += ret;
-	printf("ho ricevuto %d",byte_letti);
+	if (DEBUG) printf("[RECV_TCP_PACKET] Packet size = %d\n",byte_letti);
 
     *bytes_read = byte_letti;
 

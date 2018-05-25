@@ -74,6 +74,7 @@ void* thread_listener_tcp(void* client_args){
 
         msg_len=bytes_read;
 
+        if (DEBUG) printf("[TCP] Ricevuti i client connessi\n");
 
         // to send its texture
         // sent from server to client
@@ -106,6 +107,8 @@ void* thread_listener_tcp(void* client_args){
 				World_detachVehicle(&world, v);
 			}
 		}
+
+        if (DEBUG) printf("[TCP] Eliminati i client disconnessi dal mondo\n");
     }
 
     free(user);
@@ -159,14 +162,15 @@ void* thread_listener_udp_M(void* client_args){
         update->id = id;
 
         int vehicle_update_len = Packet_serialize(vehicle_update, &(update->header));
+        if (DEBUG) printf("[UDP RECEIVER] Serializzato pacchetto con le proprie forze\n");
 
         ret = send_UDP(socket_UDP, vehicle_update, vehicle_update_len, 0, (struct sockaddr*) &server_UDP, slen);
         PTHREAD_ERROR_HELPER(ret, "Could not send vehicle updates to server");
+        if (DEBUG) printf("[UDP RECEIVER] Inviato pacchetto con le proprie forze\n");
 
 
     }
 
-    //Packet_free(&update_head);
     free(update);
     free(vehicle_update);
 
@@ -223,12 +227,14 @@ void* thread_listener_udp_W(void* client_args){
         //non sappiamo quanto è grande la stringa che ci deve arrivare e che dobbiamo convertire in numero intero
         ret= recv_UDP_packet(socket_UDP,world_update,0, (struct sockaddr *) &server_UDP, (socklen_t*) &slen);
         PTHREAD_ERROR_HELPER(-1, "Could not receive world update");
-        //dimensione_mondo++;
         dimensione_mondo = ret;
+
+        if (DEBUG) printf("[UDP SENDER] Ricevuto pacchetto con il mondo aggiornato\n");
 
     //estriamo il numero di veicoli e gli update di ogni veicolo
 
         wup = (WorldUpdatePacket*) Packet_deserialize(world_update, dimensione_mondo);
+        if (DEBUG) printf("[UDP SENDER] Deserializzato pacchetto con il mondo aggiornato\n");
         int num_vehicles = wup->num_vehicles;
         client_update = wup->updates; //VETTOREEEEEEEEE di client update
 
@@ -252,7 +258,7 @@ void* thread_listener_udp_W(void* client_args){
             v->z = v->camera_to_world[14];
             v->theta = theta;
 
-            printf("Data update!");
+            if (DEBUG) printf("[UDP SENDER] Data update!\n");
 
         }
 
@@ -627,6 +633,7 @@ int main(int argc, char **argv) {
         if(my_texture_received!=my_texture) ERROR_HELPER(-1,"error in communication: texture not matching! \n");*/
 
         if (DEBUG) printf("[CLIENT] Texture deserializzata. Aggiorno i miei parametri id e texture\n");
+        if (DEBUG) printf("[CLIENT] La Texture deserializzata ha campo size = %d\n", my_texture_received->header.size);
 
         free(my_texture_server);
 
