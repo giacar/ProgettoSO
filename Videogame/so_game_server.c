@@ -11,6 +11,7 @@
 #include <arpa/inet.h>
 #include <netinet/in.h>
 #include <unistd.h>
+#include <signal.h>
 
 #include "image.h"
 #include "surface.h"
@@ -28,7 +29,11 @@ user_table utenti[MAX_USER_NUM];
 clients  client[MAX_USER_NUM];    //vettore di puntatori a strutture dati clients
 ListHead mov_int_list;             //lista delle intenzioni dei movimenti
 int num_online = 0;                //numero degli utenti online
-World world;                       //mondo
+World world;                       //mondo    
+int server_socket_UDP;			   //descrittore server socket UDP
+int server_socket_TCP;			   //descrittore server socket TCP
+
+
 
 
 sem_t sem_utenti;
@@ -42,6 +47,33 @@ dovrà salvare lo stato del client che si è disconnesso (semplicemente, si spos
 offline_client, e poi si mette a NULL la sua cella in online_client.
 **/
 
+void handle_sigint(int sig){
+	if (DEBUG){ printf("[SERVER] Caught signal %d\n", sig);
+				printf("[SERVER] Chiudo semafori e socket\n");
+	}
+
+	int ret = close(server_socket_TCP);
+	ERROR_HELPER(ret, "Error in closing socket TCP");
+
+	ret = close(server_socket_UDP);
+	ERROR_HELPER(ret, "Error in closing socket UDP");
+
+	if (DEBUG) printf("[SERVER] Socket chiuse. Passo ai semafori\n");
+
+	ret = sem_destroy(&sem_utenti);
+	ERROR_HELPER(ret, "Error in destroy sem_utenti");
+
+	ret = sem_destroy(&sem_thread_UDP);
+	ERROR_HELPER(ret, "Error in destroy sem_threadUDP");
+
+	ret = sem_destroy(&sem_online);
+	ERROR_HELPER(ret, "Error in destroy sem_online");
+
+	if (DEBUG) printf("[SERVER] Semafori chiusi\n");
+
+	signal(SIGINT, handle_sigint);
+
+}
 
 
 
@@ -335,10 +367,6 @@ void* thread_server_TCP(void* args){
 
         if (DEBUG) printf("[TEXTURE] Byte letti: %d\n", bytes_read);
 
-        if (ret != (int) sizeof(texture_utente)){ //praticamente inutile
-            if (DEBUG) printf("[TEXTURE] C'è un problema! Il numero di byte arrivati non corrisponde!\n");
-        }
-
         if (DEBUG) printf("[TEXTURE] Texture ricevuta dal client. Deserializzo.\n");
 
         msg_len = bytes_read;
@@ -346,9 +374,9 @@ void* thread_server_TCP(void* args){
         ImagePacket* client_texture = (ImagePacket*) Packet_deserialize(texture_utente, msg_len);
         if (client_texture->header.type!=PostTexture) PTHREAD_ERROR_HELPER(-1, "Error in client texture packet!");
 
-        
-
         if (DEBUG) printf("[TEXTURE] Texture deserializzata\n");
+
+        if (DEBUG) printf("Aggiorno lo status del client dentro la sua cella nell'array\n");
 
         client[idx].id = idx;
         client[idx].texture = client_texture->image;
@@ -762,7 +790,7 @@ void* thread_server_UDP_sender(void* args){
         PacketHeader head;
         worldup->header = head;
 		worldup->header.type=WorldUpdate;
-		//head->size=sizeof(WorldUpdatePacket)+num_connected*sizeof(ClientUpdate);
+		worldup->header.size=sizeof(WorldUpdatePacket);	//+num_connected*sizeof(ClientUpdate)
 		worldup->num_vehicles=num_connected;
 		worldup->updates=update;
 
@@ -824,7 +852,7 @@ void* thread_server_UDP_receiver(void* args){
 
 
         while(1) {//dobbiamo gestire ancora la chiusura del server
-            ret = recv_UDP_packet(socket, msg, 0, (struct sockaddr *)& server_struct_UDP,(socklen_t*)&slen);
+            ret = recv_UDP_packet(socket, msg, 0, (struct sockaddr *)&server_struct_UDP,(socklen_t*)&slen);
             if (ret == -2) {
                 printf("Could not send user data to client\n");
             }
@@ -864,6 +892,10 @@ void* thread_server_UDP_receiver(void* args){
 
 
 int main(int argc, char **argv) {
+
+	signal(SIGINT, handle_sigint);
+
+
     if (argc<3) {
         printf("usage: %s <elevation_image> <texture_image>\n", argv[1]);
         exit(-1);
@@ -930,9 +962,7 @@ int main(int argc, char **argv) {
 
 
 
-    //definisco descrittore server socket e struttura per bind
-
-    int server_socket_UDP;
+    //definisco struttura per bind
     struct sockaddr_in server_addr_UDP = {0};
 
     //imposto i valori della struttura
@@ -983,9 +1013,7 @@ int main(int argc, char **argv) {
     ERROR_HELPER(ret, "Could not detach thread");
 
 
-    //definisco descrittore server socket TCP
-
-    int server_socket_TCP;
+    //definisco struttura per server socket TCP
     struct sockaddr_in server_addr = {0};
 
     //imposto i valori delle struttura per accettare connessioni

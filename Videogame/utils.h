@@ -4,6 +4,7 @@
 #include "image.h"
 #include "linked_list.h"
 #include "vehicle.h"
+#include "common.h"
 
 typedef struct clients{
 	int id;
@@ -78,4 +79,7 @@ int recv_UDP_packet(int socket, char *buf, int flags, struct sockaddr *src_addr,
 int send_UDP(int socket, const char *buf, size_t len, int flags, const struct sockaddr *dest_addr, socklen_t addrlen);
 
 // Funzione per eliminazione semafori
-//int sem_clean(sem_t sem_utenti, sem_t sem_thread_UDP);
+int sem_clean(sem_t sem_utenti, sem_t sem_thread_UDP, sem_t sem_online);
+
+// Funzione per chiusura socket
+int close_sockets_server(int server_socket_TCP, int server_socket_UDP);

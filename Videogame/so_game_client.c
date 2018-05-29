@@ -27,10 +27,30 @@ World world;
 Vehicle* vehicle; // The vehicle
 char username[64];
 char password[64];
+int socket_desc;		//socket desc TCP
+int socket_desc_UDP;	//socket desc UDP
+
+
+
 
 //se recv() restituisce 0 o un errore di socket (ENOTCONN et similia), vuol dire che la comunicazione è stata chiusa. Idem per recvfrom
 //send() invece, in caso di errore (ENOTCONN et similia), restituisce -1 e setta errno a un certo valore. Idem per sendto
 
+void handle_sigint(int sig){
+	if (DEBUG) {printf("[CLIENT] Caught signal %d\n", sig);
+				printf("[CLIENT] Procedo a chiudere semafori e socket\n");
+	}
+
+	int ret = close(socket_desc);
+	ERROR_HELPER(ret, "Error in closing socket desc TCP");
+
+	ret = close(socket_desc_UDP);
+	ERROR_HELPER(ret, "Error in closing socket desc UDP");
+
+	if (DEBUG) printf("[CLIENT] Socket chiuse\n");
+
+	signal(SIGINT, handle_sigint);
+}
 
 
 void* thread_listener_tcp(void* client_args){
@@ -69,6 +89,8 @@ void* thread_listener_tcp(void* client_args){
     while (1){
 
         //Il server invia le celle dell'array dei connessi che non sono messe a NULL.
+        if (DEBUG) printf("[TCP] Ricevo gli utenti già nel mondo");
+
         ret = recv_TCP_packet(socket, user, 0, &bytes_read);
         PTHREAD_ERROR_HELPER(ret, "Could not receive users already in world");
 
@@ -93,7 +115,6 @@ void* thread_listener_tcp(void* client_args){
 			ImagePacket* client=(ImagePacket*)clienth;
 
 			int id = client->id;
-
 
 			Vehicle* v = (Vehicle*) malloc(sizeof(Vehicle));
 			Vehicle_init(v, &world, id, client->image);
@@ -211,7 +232,6 @@ void* thread_listener_udp_W(void* client_args){
     **/
 
     char *world_update = (char *)malloc(DIM_BUFF*sizeof(char));
-    char *world_update_len = (char *)malloc(DIM_BUFF*sizeof(char));
     WorldUpdatePacket *wup;
     ClientUpdate *client_update;
     ClientUpdate update;
@@ -248,7 +268,6 @@ void* thread_listener_udp_W(void* client_args){
             int id = update.id;
             float x = update.x;
             float y = update.y;
-            //float z = update.camera_to_world[14];
             float theta = update.theta;
 
             //Aggiornamento veicolo
@@ -266,14 +285,10 @@ void* thread_listener_udp_W(void* client_args){
     }
 
     free(world_update);
-    free(world_update_len);
 
     /**uscire dal while, significa che il client si sta disconnettendo. Il server deve salvare il suo stato da qualche parte, per ripristinarlo più avanti
        se il client si connetterà ancora**/
 
-    /**funzioni di send e receive per comunicazione UDP**/
-    //sendto(int sockfd, void* buff, size_t #bytes, int flags, const struct sockaddr* to, socklen_t addrlen)
-    //recvfrom(int sockfd, void* buff, size_t #bytes, int flags, const struct sockaddr* from, socklen_t addrlen)
 }
 
 
@@ -350,6 +365,8 @@ void idle(void) {
 }**/
 
 int main(int argc, char **argv) {
+	signal(SIGINT, handle_sigint);
+
 	if (argc<3) {
 		printf("usage: %s <server_address> <player texture>\n", argv[1]);
 		exit(-1);
@@ -376,7 +393,6 @@ int main(int argc, char **argv) {
 	//   -get the texture of the surface
 
 	//variables for handling a socket
-	int socket_desc;
 	struct sockaddr_in server_addr = {0};    //some fields are required to be filled with 0
 
 	//creating a socket TCP
@@ -396,7 +412,6 @@ int main(int argc, char **argv) {
 
 
 	//variable for UDP socket
-	int socket_desc_UDP;
 	struct sockaddr_in server_addr_UDP = {0};
 	//creating UDP sopcket
 	socket_desc_UDP = socket(AF_INET, SOCK_DGRAM, 0);

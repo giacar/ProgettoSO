@@ -208,14 +208,23 @@ int send_UDP(int socket, const char *buf, size_t len, int flags, const struct so
 	return ret;
 }
 
-/**int sem_clean(sem_t sem_utenti, sem_t sem_thread_UDP){
+int sem_clean(sem_t sem_utenti, sem_t sem_thread_UDP, sem_t sem_online){
     int ret;
 
     ret = sem_destroy(&sem_utenti);
-    if (ret == -1) printf("Could not destroy sem_utenti");
+  	if (ret == -1){ printf("Could not destroy sem_utenti");
+  				   	exit(EXIT_FAILURE);}
 
     ret = sem_destroy(&sem_thread_UDP);
-    if (ret == -1) printf("Could not destroy sem_thread_UDP");
+    if (ret == -1){ printf("Could not destroy sem_thread_UDP");
+    				exit(EXIT_FAILURE);}
 
-}**/
+    ret = sem_destroy(&sem_online);
+    if (ret == -1){printf("Could not destroy sem_online");
+				   exit(EXIT_FAILURE);}
+
+	return 0;
+
+}
+
 // DA CONTROLLARNE LA CORRETTEZZA
