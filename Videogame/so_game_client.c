@@ -89,10 +89,14 @@ void* thread_listener_tcp(void* client_args){
     while (1){
 
         //Il server invia le celle dell'array dei connessi che non sono messe a NULL.
-        if (DEBUG) printf("[TCP] Ricevo gli utenti già nel mondo");
+        if (DEBUG) printf("[TCP] Ricevo gli utenti già nel mondo\n");
 
         ret = recv_TCP_packet(socket, user, 0, &bytes_read);
-        PTHREAD_ERROR_HELPER(ret, "Could not receive users already in world");
+        if (ret == -2){
+        	printf("Could not receive users already in world\n");
+        	pthread_exit(NULL);
+        }
+        else PTHREAD_ERROR_HELPER(ret, "Could not receive users already in world");
 
         msg_len=bytes_read;
 
@@ -183,11 +187,11 @@ void* thread_listener_udp_M(void* client_args){
         update->id = id;
 
         int vehicle_update_len = Packet_serialize(vehicle_update, &(update->header));
-        if (DEBUG) printf("[UDP RECEIVER] Serializzato pacchetto con le proprie forze\n");
+        if (DEBUG) printf("[UDP SENDER] Serializzato pacchetto con le proprie forze\n");
 
         ret = send_UDP(socket_UDP, vehicle_update, vehicle_update_len, 0, (struct sockaddr*) &server_UDP, slen);
         PTHREAD_ERROR_HELPER(ret, "Could not send vehicle updates to server");
-        if (DEBUG) printf("[UDP RECEIVER] Inviato pacchetto con le proprie forze\n");
+        if (DEBUG) printf("[UDP SENDER] Inviato pacchetto con le proprie forze\n");
 
 
     }
@@ -238,6 +242,8 @@ void* thread_listener_udp_W(void* client_args){
     Vehicle *v;
     int dimensione_mondo;
 
+    int bytes_read;
+
     while(1){
 
 
@@ -245,16 +251,19 @@ void* thread_listener_udp_W(void* client_args){
     //da sistemare la dimensione
 
         //non sappiamo quanto è grande la stringa che ci deve arrivare e che dobbiamo convertire in numero intero
-        ret= recv_UDP_packet(socket_UDP,world_update,0, (struct sockaddr *) &server_UDP, (socklen_t*) &slen);
-        PTHREAD_ERROR_HELPER(-1, "Could not receive world update");
-        dimensione_mondo = ret;
 
-        if (DEBUG) printf("[UDP SENDER] Ricevuto pacchetto con il mondo aggiornato\n");
+        bytes_read = 0;
+
+        ret= recv_UDP_packet(socket_UDP,world_update,0, (struct sockaddr *) &server_UDP, (socklen_t*) &slen, &bytes_read);
+        PTHREAD_ERROR_HELPER(ret, "Could not receive world update");
+        dimensione_mondo = bytes_read;
+
+        if (DEBUG) printf("[UDP RECEIVER] Ricevuto pacchetto con il mondo aggiornato\n");
 
     //estriamo il numero di veicoli e gli update di ogni veicolo
 
         wup = (WorldUpdatePacket*) Packet_deserialize(world_update, dimensione_mondo);
-        if (DEBUG) printf("[UDP SENDER] Deserializzato pacchetto con il mondo aggiornato\n");
+        if (DEBUG) printf("[UDP RECEIVER] Deserializzato pacchetto con il mondo aggiornato\n");
         int num_vehicles = wup->num_vehicles;
         client_update = wup->updates; //VETTOREEEEEEEEE di client update
 
@@ -277,7 +286,9 @@ void* thread_listener_udp_W(void* client_args){
             v->z = v->camera_to_world[14];
             v->theta = theta;
 
-            if (DEBUG) printf("[UDP SENDER] Data update!\n");
+            //ret = Vehicle_update(v, 0.5);
+
+            if (DEBUG) printf("[UDP RECEIVER] Data update!\n");
 
         }
 

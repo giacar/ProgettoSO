@@ -72,7 +72,7 @@ int recv_UDP(int socket, char *buf, size_t len, int flags, struct sockaddr *src_
 
 // Funzione di ricezione TCP per i pacchetti
 
-int recv_UDP_packet(int socket, char *buf, int flags, struct sockaddr *src_addr, socklen_t *addrlen);
+int recv_UDP_packet(int socket, char *buf, int flags, struct sockaddr *src_addr, socklen_t *addrlen, int* bytes_read);
 
 // Funzione di invio UDP
 
