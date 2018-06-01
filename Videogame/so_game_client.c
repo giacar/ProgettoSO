@@ -29,7 +29,7 @@ char username[64];
 char password[64];
 int socket_desc;		//socket desc TCP
 int socket_desc_UDP;	//socket desc UDP
-
+sem_t sem_world_c;
 
 
 
@@ -46,6 +46,9 @@ void handle_sigint(int sig){
 
 	ret = close(socket_desc_UDP);
 	ERROR_HELPER(ret, "Error in closing socket desc UDP");
+
+    ret = sem_destroy(&sem_world_c);
+    ERROR_HELPER(ret, "Error in destroy sem_world_c");
 
 	if (DEBUG) printf("[CLIENT] Socket chiuse\n");
 
@@ -94,7 +97,7 @@ void* thread_listener_tcp(void* client_args){
         ret = recv_TCP_packet(socket, user, 0, &bytes_read);
         if (ret == -2){
         	printf("Could not receive users already in world\n");
-        	pthread_exit(NULL);
+        	exit(1);
         }
         else PTHREAD_ERROR_HELPER(ret, "Could not receive users already in world");
 
@@ -120,16 +123,32 @@ void* thread_listener_tcp(void* client_args){
 
 			int id = client->id;
 
+            ret = sem_wait(&sem_world_c);
+            PTHREAD_ERROR_HELPER(ret, "Failed to wait sem_world_c  adding vehicle \n");
+
 			Vehicle* v = (Vehicle*) malloc(sizeof(Vehicle));
 			Vehicle_init(v, &world, id, client->image);
+            World_addVehicle(&world, v);
+
+
+            ret = sem_post(&sem_world_c);
+            PTHREAD_ERROR_HELPER(ret, "Failed to post sem_world_c  adding vehicle \n");
+
 		}
 		else if(clienth->type==GetId){
 			IdPacket* clientd=(IdPacket*)clienth;
 			if(clientd->id>=MAX_USER_NUM);
 			else{
 				int id=clientd->id;
+
+                ret = sem_wait(&sem_world_c);
+                PTHREAD_ERROR_HELPER(ret, "Failed to wait sem_world_c  removing vehicle \n");
+
 				Vehicle* v = World_getVehicle(&world, id);
 				World_detachVehicle(&world, v);
+
+                ret = sem_post(&sem_world_c);
+                PTHREAD_ERROR_HELPER(ret, "Failed to post sem_world_c  removing vehicle \n");
 			}
 		}
 
@@ -192,6 +211,7 @@ void* thread_listener_udp_M(void* client_args){
         ret = send_UDP(socket_UDP, vehicle_update, vehicle_update_len, 0, (struct sockaddr*) &server_UDP, slen);
         PTHREAD_ERROR_HELPER(ret, "Could not send vehicle updates to server");
         if (DEBUG) printf("[UDP SENDER] Inviato pacchetto con le proprie forze\n");
+        sleep(0.5);
 
 
     }
@@ -254,7 +274,7 @@ void* thread_listener_udp_W(void* client_args){
 
         bytes_read = 0;
 
-        ret= recv_UDP_packet(socket_UDP,world_update,0, (struct sockaddr *) &server_UDP, (socklen_t*) &slen, &bytes_read);
+        ret= recv_UDP_packet(socket_UDP,world_update,0, NULL, NULL, &bytes_read);
         PTHREAD_ERROR_HELPER(ret, "Could not receive world update");
         dimensione_mondo = bytes_read;
 
@@ -280,11 +300,21 @@ void* thread_listener_udp_W(void* client_args){
             float theta = update.theta;
 
             //Aggiornamento veicolo
+
+            ret = sem_wait(&sem_world_c);
+            PTHREAD_ERROR_HELPER(ret, "Failed to wait sem_world_c in thread_UDP_receiver");
+
             v = World_getVehicle(&world, id);
-            v->x = x;
-            v->y = y;
-            v->z = v->camera_to_world[14];
-            v->theta = theta;
+            if(v!=0){
+                printf("posizioni veicolo ricevute \n");
+                v->x = x;
+                v->y = y;
+                v->z = v->camera_to_world[14];
+                v->theta = theta;
+            }
+
+            ret = sem_post(&sem_world_c);
+            ERROR_HELPER(ret, "Failed to post sem_world_c in thread_UDP_receiver");
 
             //ret = Vehicle_update(v, 0.5);
 
@@ -395,6 +425,11 @@ int main(int argc, char **argv) {
 
 
     int ret;
+
+    //inizializzo semaforo
+
+    ret = sem_init(&sem_world_c, 0, 1);
+    ERROR_HELPER(ret, "Failed to initialization of sem_world_c");
 
 	Image* my_texture_for_server = my_texture;
 	// todo: connect to the server

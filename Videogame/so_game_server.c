@@ -37,8 +37,7 @@ int server_socket_TCP;			   //descrittore server socket TCP
 
 
 sem_t sem_utenti;
-sem_t sem_thread_UDP;
-sem_t sem_online;
+sem_t sem_world;
 
 /**
 NOTA PER IL SERVER: Quando c'è un errore su una socket di tipo ENOTCONN (sia UDP che TCP), allora vuol dire che il client si è disconnesso (indipendetemente
@@ -63,11 +62,11 @@ void handle_sigint(int sig){
 	ret = sem_destroy(&sem_utenti);
 	ERROR_HELPER(ret, "Error in destroy sem_utenti");
 
-	ret = sem_destroy(&sem_thread_UDP);
-	ERROR_HELPER(ret, "Error in destroy sem_threadUDP");
 
-	ret = sem_destroy(&sem_online);
-	ERROR_HELPER(ret, "Error in destroy sem_online");
+
+
+    ret = sem_destroy(&sem_world);
+    ERROR_HELPER(ret, "Error in destroy sem_world");
 
 	if (DEBUG) printf("[SERVER] Semafori chiusi\n");
 
@@ -421,13 +420,22 @@ void* thread_server_TCP(void* args){
         if (DEBUG) printf("[TEXTURE] Creo il veicolo del client!\n");
 
          // create a vehicle
+
+        ret = sem_wait(&sem_world);
+        PTHREAD_ERROR_HELPER(ret, "Error in sem_world wait \n");
+
 		Vehicle* vehicle=(Vehicle*) malloc(sizeof(Vehicle));
 		Vehicle_init(vehicle, &world, idx, client[idx].texture);
 
         if (DEBUG) printf("[VEHICLE] Veicolo del client creato. Lo aggiungo al mondo\n");
 
+
+
 		//  add it to the world
 		World_addVehicle(&world, vehicle);
+
+        ret = sem_post(&sem_world);
+        PTHREAD_ERROR_HELPER(ret, "Error in sem_world post \n");
 
         if (DEBUG) printf("[WORLD] Veicolo aggiunto al mondo con successo\n");
 
@@ -479,12 +487,18 @@ void* thread_server_TCP(void* args){
         }
         else PTHREAD_ERROR_HELPER(ret, "Could not send client texture and id");
 
+        ret = sem_wait(&sem_world);
+        PTHREAD_ERROR_HELPER(ret, "Error in sem_world wait \n");
+
          // create a vehicle
 		Vehicle* vehicle=(Vehicle*) malloc(sizeof(Vehicle));
 		Vehicle_init(vehicle, &world, idx, client[idx].texture);
 
 		//  add it to the world
 		World_addVehicle(&world, vehicle);
+
+        ret = sem_post(&sem_world);
+        PTHREAD_ERROR_HELPER(ret, "Error in sem_world post \n");
 
         free(idPacket_buf);
 
@@ -782,8 +796,8 @@ void* thread_server_UDP_sender(void* args){
 
     	if (DEBUG) printf("[UDP_SENDER] I'm alive!\n");
     	
-        ret = sem_wait(&sem_thread_UDP);
-        ERROR_HELPER(ret, "Failed to wait sem_thread_UDP in thread_UDP_sender");
+        ret = sem_wait(&sem_world);
+        ERROR_HELPER(ret, "Failed to wait sem_world in thread_UDP_sender");
 
         if (DEBUG) printf("[UDP_SENDER] Wait superata\n");
 
@@ -803,10 +817,12 @@ void* thread_server_UDP_sender(void* args){
         for(i=0;i<MAX_USER_NUM;i++){
 			if(client[i].status==1){
 				Vehicle* v = World_getVehicle(&world,client[i].id);
-				update[i].id=client[i].id;
-				update[i].x=v->x;
-				update[i].y=v->y;
-				update[i].theta=v->theta;
+                if(v!=0){
+				    update[i].id=client[i].id;
+				    update[i].x=v->x;
+				    update[i].y=v->y;
+				    update[i].theta=v->theta;
+                }
 			}
 		}
 
@@ -831,8 +847,8 @@ void* thread_server_UDP_sender(void* args){
 				ret = send_UDP(socket,msg,packet_len,0,(const struct sockaddr*)client[i].addr,(socklen_t)sizeof(struct sockaddr_in));
 				if (ret == -2) {
 					printf("Could not send user data to client\n");
-					ret = sem_post(&sem_thread_UDP);
-					ERROR_HELPER(ret, "Failed to post sem_thread_UDP in thread_UDP_receiver");
+					//ret = sem_post(&sem_thread_UDP);
+					//ERROR_HELPER(ret, "Failed to post sem_thread_UDP in thread_UDP_receiver");
 
 					if (DEBUG) printf("[UDP_SENDER] Post effettuata\n");
 				}
@@ -848,14 +864,14 @@ void* thread_server_UDP_sender(void* args){
 
         //sblocco il semaforo
 
-        ret = sem_post(&sem_thread_UDP);
-        ERROR_HELPER(ret, "Failed to post sem_thread_UDP in thread_UDP_sender");
+        ret = sem_post(&sem_world);
+        ERROR_HELPER(ret, "Failed to post sem_world in thread_UDP_sender");
 
         if (DEBUG) printf("[UDP_SENDER] Post effettuata\n");
 
         if (DEBUG) printf("[UDP SENDER] Mi addormento per 500 ms\n");
 
-        sleep(500);
+        sleep(1);
     }
 
     free(msg);
@@ -883,14 +899,21 @@ void* thread_server_UDP_receiver(void* args){
 
 
         while(1) {//dobbiamo gestire ancora la chiusura del server
-        	bytes_read = 0;
 
-            ret = recv_UDP_packet(socket, msg, 0, (struct sockaddr *)&server_struct_UDP,(socklen_t*)&slen, &bytes_read);
+
+
+        	bytes_read = 0;
+            server_struct_UDP=(struct sockaddr_in*)malloc(sizeof(struct sockaddr_in));
+
+            ret = recv_UDP_packet(socket, msg, 0, (struct sockaddr *)server_struct_UDP,(socklen_t*)&slen, &bytes_read);
             if (ret == -2) {
                 printf("Could not receiver user data from client\n");
             }
 
             if (DEBUG) printf("[UDP RECEIVER] Ricevuto pacchetto\n");
+
+            ret = sem_wait(&sem_world);
+            PTHREAD_ERROR_HELPER(ret, "Failed to wait sem_worldin thread_UDP_receiver");
 
             // deserializzo il pacchetto appena ricevuto
             packet = (VehicleUpdatePacket *)Packet_deserialize(msg, bytes_read);
@@ -905,16 +928,18 @@ void* thread_server_UDP_receiver(void* args){
                 if (DEBUG) printf("[UDP RECEIVER] Aggiornato indirizzo del client (primo pacchetto UDP)\n");
             }
 
-            ret = sem_wait(&sem_thread_UDP);
-			PTHREAD_ERROR_HELPER(ret, "Failed to wait sem_thread_UDP in thread_UDP_receiver");
+
             //sostuisco le sue intenzioni di movimento ricevute nelle sue variabili nel mondo
 
             Vehicle* v=World_getVehicle(&world,packet->id);
-            v->translational_force_update=packet->translational_force;
-            v->rotational_force_update=packet->rotational_force;
+            if(v!=0){
+                printf("ricevute nuove intenzioni movimento \n");
+                v->translational_force_update=packet->translational_force;
+                v->rotational_force_update=packet->rotational_force;
+            }
 
-			ret = sem_post(&sem_thread_UDP);
-			ERROR_HELPER(ret, "Failed to post sem_thread_UDP in thread_UDP_receiver");
+			ret = sem_post(&sem_world);
+			ERROR_HELPER(ret, "Failed to post sem_world in thread_UDP_receiver");
 
             if (DEBUG) printf("[UDP RECEIVER] Forze del client aggiornate\n");
     }
@@ -980,8 +1005,10 @@ int main(int argc, char **argv) {
 	ret = sem_init(&sem_utenti, 0, 1);
 	ERROR_HELPER(ret, "Failed to initialization of sem_utenti");
 
-    ret = sem_init(&sem_online, 0, 1);
-    ERROR_HELPER(ret, "Failed to initialization of sem_online");
+
+
+    ret = sem_init(&sem_world, 0, 1);
+    ERROR_HELPER(ret, "Failed to initialization of sem_world");
 
 	// inizializzo array di utenti
 	for (i = 0; i < MAX_USER_NUM; i++) {
@@ -1011,14 +1038,14 @@ int main(int argc, char **argv) {
 
     // faccio la bind
 
-    //ret=bind(server_socket_UDP,(struct sockaddr*) &server_addr_UDP,sizeof(struct sockaddr_in));
-    //ERROR_HELPER(ret,"error binding socket  UDP \n");
+    ret=bind(server_socket_UDP,(struct sockaddr*) &server_addr_UDP,sizeof(struct sockaddr_in));
+    ERROR_HELPER(ret,"error binding socket  UDP \n");
 
 
     //creo i thread che si occuperanno di ricevere le forze dai vari client e di inviare un world update packet a tutti i client (UDP)
 
-    ret = sem_init(&sem_thread_UDP, 0, 1);
-	ERROR_HELPER(ret, "Failed to initialization of sem_thread_UDP");
+
+
 
 
     pthread_t thread_UDP_receiver;

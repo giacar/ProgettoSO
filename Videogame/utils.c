@@ -15,6 +15,14 @@ int recv_TCP_packet(int socket, char* buf, int flags, int* bytes_read) {
 
 	do {
 		ret = recv(socket, buf, sizeof(PacketHeader), flags);
+		if (ret == 0) {
+			printf("Connection error. ");
+			return -2;
+		}
+		if (ret == -1 && errno == ENOTCONN) {
+			printf("Connection closed. ");
+			return -2;
+		}
 	} while (ret == -1 && errno == EINTR);
 
 	byte_letti += ret;
@@ -30,6 +38,14 @@ int recv_TCP_packet(int socket, char* buf, int flags, int* bytes_read) {
 
 	do {
 		ret = recv(socket, buf+byte_letti, packet_len-byte_letti, flags);
+		if (ret == 0) {
+			printf("Connection error. ");
+			return -2;
+		}
+		if (ret == -1 && errno == ENOTCONN) {
+			printf("Connection closed. ");
+			return -2;
+		}
 	} while (ret == -1 && errno == EINTR);
 
 	byte_letti += ret;
@@ -57,6 +73,10 @@ int recv_TCP(int socket, char *buf, size_t len, int flags) {
 			printf("Connection closed. ");
 			return -2;
 		}
+		else if (ret == 0) {
+			printf("Connection error. ");
+			return -2;
+		}
 
 	}
 
@@ -72,6 +92,10 @@ int recv_TCP(int socket, char *buf, size_t len, int flags) {
 			if (errno == EINTR) continue;
 			if (errno == ENOTCONN) {
 				printf("Connection closed. ");
+				return -2;
+			}
+			if (ret == 0) {
+				printf("Connection error. ");
 				return -2;
 			}
 
