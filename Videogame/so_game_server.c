@@ -33,9 +33,6 @@ World world;                       //mondo
 int server_socket_UDP;			   //descrittore server socket UDP
 int server_socket_TCP;			   //descrittore server socket TCP
 
-
-
-
 sem_t sem_utenti;
 sem_t sem_world;
 
@@ -46,31 +43,58 @@ dovrà salvare lo stato del client che si è disconnesso (semplicemente, si spos
 offline_client, e poi si mette a NULL la sua cella in online_client.
 **/
 
-void handle_sigint(int sig){
-	if (DEBUG){ printf("[SERVER] Caught signal %d\n", sig);
-				printf("[SERVER] Chiudo semafori e socket\n");
-	}
+void handle_signal(int sig){
+    int ret;
 
-	int ret = close(server_socket_TCP);
-	ERROR_HELPER(ret, "Error in closing socket TCP");
+    switch(sig){
+        case SIGHUP:
+            break;
+        case SIGTERM:
+        case SIGQUIT:
+        case SIGINT:
+            if (DEBUG) printf("Closing...\n");
+            ret = close(server_socket_TCP);
+            ERROR_HELPER(ret, "Error in closing socket desc TCP");
 
-	ret = close(server_socket_UDP);
-	ERROR_HELPER(ret, "Error in closing socket UDP");
+            ret = close(server_socket_UDP);
+            ERROR_HELPER(ret, "Error in closing socket desc UDP");
 
-	if (DEBUG) printf("[SERVER] Socket chiuse. Passo ai semafori\n");
+            ret = sem_destroy(&sem_world);
+            ERROR_HELPER(ret, "Error in destroy sem_world");
 
-	ret = sem_destroy(&sem_utenti);
-	ERROR_HELPER(ret, "Error in destroy sem_utenti");
+            ret = sem_destroy(&sem_utenti);
+            ERROR_HELPER(ret, "Error in destroy sem_utenti");
 
+            if (DEBUG) printf("Socket chiuse e semafori distrutti\n");
 
+            World_destroy(&world);
 
+            if (DEBUG) printf("Mondo distrutto\n");
 
-    ret = sem_destroy(&sem_world);
-    ERROR_HELPER(ret, "Error in destroy sem_world");
+        case SIGSEGV:
+            if (DEBUG) printf("Segmentation fault... closing\n");
+            ret = close(server_socket_TCP);
+            ERROR_HELPER(ret, "Error in closing socket desc TCP");
 
-	if (DEBUG) printf("[SERVER] Semafori chiusi\n");
+            ret = close(server_socket_UDP);
+            ERROR_HELPER(ret, "Error in closing socket desc UDP");
 
-	signal(SIGINT, handle_sigint);
+            ret = sem_destroy(&sem_world);
+            ERROR_HELPER(ret, "Error in destroy sem_world");
+
+            ret = sem_destroy(&sem_utenti);
+            ERROR_HELPER(ret, "Error in destroy sem_utenti");
+
+            if (DEBUG) printf("Socket chiuse e semafori distrutti\n");
+
+            World_destroy(&world);
+
+            if (DEBUG) printf("Mondo distrutto\n");
+
+        default:
+            if (DEBUG) printf("Caught wrong signal...\n");
+            return;
+    }
 
 }
 
@@ -755,31 +779,9 @@ void* thread_server_TCP(void* args){
 
 void* thread_server_UDP_sender(void* args){
 
-    // server world update, send by server (UDP)
-/**typedef struct {
-  PacketHeader header;
-  int num_vehicles;
-  ClientUpdate* updates;
-} WorldUpdatePacket;
-*
-* typedef struct {
-  int id;
-  float x;
-  float y;
-  float theta;
-} ClientUpdate;
-*
-* typedef struct {
-  PacketHeader header;
-  int id;
-  float rotational_force;
-  float translational_force;
-} VehicleUpdatePacket;**/
 
     int ret, socket = 0;
     char *msg = (char *)malloc(DIM_BUFF*sizeof(char));
-
-
 
     //bisogna estrapolare il veicolo identificato dall'id, aggiornarlo basandoci sulle nuove forze applicate, e infilarlo dentro il world_update_packet
 
@@ -787,12 +789,15 @@ void* thread_server_UDP_sender(void* args){
 
     socket = arg->socket_desc_UDP_server;
     clients* client=arg->list;
+    socklen_t slen;
 
 
 
 	//ad intervalli regolari integrare il mondo,inviare le nuove posizioni di tutti i client a tutti i client
     //DA FINIRE E CONTROLLARNE LA CORRETTEZZA
     while(1) {
+
+        struct sockaddr_in client_addr;
 
     	if (DEBUG) printf("[UDP_SENDER] I'm alive!\n");
     	
@@ -832,7 +837,6 @@ void* thread_server_UDP_sender(void* args){
         PacketHeader head;
         worldup->header = head;
 		worldup->header.type=WorldUpdate;
-		//worldup->header.size=sizeof(WorldUpdatePacket);	//+num_connected*sizeof(ClientUpdate)
 		worldup->num_vehicles=num_connected;
 		worldup->updates=update;
 
@@ -844,13 +848,11 @@ void* thread_server_UDP_sender(void* args){
 
 		for(i=0;i<MAX_USER_NUM;i++){
 			if(client[i].status==1 && client[i].addr!=NULL){
-				ret = send_UDP(socket,msg,packet_len,0,(const struct sockaddr*)client[i].addr,(socklen_t)sizeof(struct sockaddr_in));
+                client_addr = *client[i].addr;
+                slen = sizeof(struct sockaddr_in);
+				ret = send_UDP(socket,msg,packet_len,0,(const struct sockaddr*) &client_addr, slen);
 				if (ret == -2) {
 					printf("Could not send user data to client\n");
-					//ret = sem_post(&sem_thread_UDP);
-					//ERROR_HELPER(ret, "Failed to post sem_thread_UDP in thread_UDP_receiver");
-
-					if (DEBUG) printf("[UDP_SENDER] Post effettuata\n");
 				}
 			}
 		}
@@ -871,7 +873,7 @@ void* thread_server_UDP_sender(void* args){
 
         if (DEBUG) printf("[UDP SENDER] Mi addormento per 500 ms\n");
 
-        sleep(1);
+        sleep(3);
     }
 
     free(msg);
@@ -889,8 +891,8 @@ void* thread_server_UDP_receiver(void* args){
     clients* client=arg->list;
 
     socket = arg->socket_desc_UDP_server;
-    struct sockaddr_in* server_struct_UDP=(struct sockaddr_in*)malloc(sizeof(struct sockaddr_in));
-    int slen=sizeof(struct sockaddr_in);
+    struct sockaddr_in client_addr;
+    socklen_t slen;
 
     int bytes_read;
 
@@ -900,14 +902,12 @@ void* thread_server_UDP_receiver(void* args){
 
         while(1) {//dobbiamo gestire ancora la chiusura del server
 
-
-
         	bytes_read = 0;
-            server_struct_UDP=(struct sockaddr_in*)malloc(sizeof(struct sockaddr_in));
+            slen = sizeof(struct sockaddr_in);
 
-            ret = recv_UDP_packet(socket, msg, 0, (struct sockaddr *)server_struct_UDP,(socklen_t*)&slen, &bytes_read);
+            ret = recv_UDP_packet(socket, msg, 0, (struct sockaddr *) &client_addr, &slen, &bytes_read);
             if (ret == -2) {
-                printf("Could not receiver user data from client\n");
+                printf("Could not receive user data from client\n");
             }
 
             if (DEBUG) printf("[UDP RECEIVER] Ricevuto pacchetto\n");
@@ -921,13 +921,12 @@ void* thread_server_UDP_receiver(void* args){
             if (DEBUG) printf("[UDP RECEIVER] Pacchetto deserializzato\n");
 
             if(client[packet->id].addr!=NULL){
-                free(server_struct_UDP);
+                if (DEBUG) printf("[UDP RECEIVER] Indirizzo del client già presente nella struttura dati\n");
             }
             else{
-                client[packet->id].addr=server_struct_UDP;
+                client[packet->id].addr = &client_addr;
                 if (DEBUG) printf("[UDP RECEIVER] Aggiornato indirizzo del client (primo pacchetto UDP)\n");
             }
-
 
             //sostuisco le sue intenzioni di movimento ricevute nelle sue variabili nel mondo
 
@@ -950,9 +949,6 @@ void* thread_server_UDP_receiver(void* args){
 
 
 int main(int argc, char **argv) {
-
-	signal(SIGINT, handle_sigint);
-
 
     if (argc<3) {
         printf("usage: %s <elevation_image> <texture_image>\n", argv[1]);
@@ -1005,10 +1001,24 @@ int main(int argc, char **argv) {
 	ret = sem_init(&sem_utenti, 0, 1);
 	ERROR_HELPER(ret, "Failed to initialization of sem_utenti");
 
-
-
     ret = sem_init(&sem_world, 0, 1);
     ERROR_HELPER(ret, "Failed to initialization of sem_world");
+
+    struct sigaction sa;
+    sa.sa_handler = handle_signal;
+    sa.sa_flags = SA_RESTART;
+    sigfillset(&sa.sa_mask);
+
+    ret = sigaction(SIGINT, &sa, NULL);
+    ERROR_HELPER(ret, "Could not handle SIGINT");
+    ret = sigaction(SIGTERM, &sa, NULL);
+    ERROR_HELPER(ret, "Could not handle SIGTERM");
+    ret = sigaction(SIGQUIT, &sa, NULL);
+    ERROR_HELPER(ret, "Could not handle SIGQUIT");
+    ret = sigaction(SIGHUP, &sa, NULL);
+    ERROR_HELPER(ret, "Could not handle SIGHUP");
+    ret = sigaction(SIGSEGV, &sa, NULL);
+    ERROR_HELPER(ret, "Could not handle SIGSEGV");
 
 	// inizializzo array di utenti
 	for (i = 0; i < MAX_USER_NUM; i++) {
@@ -1019,8 +1029,6 @@ int main(int argc, char **argv) {
 	//creo il mondo
 
 	World_init(&world, surface_elevation, surface_texture,  0.5, 0.5, 0.5);
-
-
 
     //definisco struttura per bind
     struct sockaddr_in server_addr_UDP = {0};
@@ -1132,44 +1140,5 @@ int main(int argc, char **argv) {
 
     }
 
-
-  // not needed here
-  //   // construct the world
-  // World_init(&world, surface_elevation, surface_texture,  0.5, 0.5, 0.5);
-
-  // // create a vehicle
-  // vehicle=(Vehicle*) malloc(sizeof(Vehicle));
-  // Vehicle_init(vehicle, &world, 0, vehicle_texture);
-
-  // // add it to the world
-  // World_addVehicle(&world, vehicle);
-
-
-
-  // // initialize GL
-  // glutInit(&argc, argv);
-  // glutInitDisplayMode(GLUT_DOUBLE | GLUT_RGB | GLUT_DEPTH);
-  // glutCreateWindow("main");
-
-  // // set the callbacks
-  // glutDisplayFunc(display);
-  // glutIdleFunc(idle);
-  // glutSpecialFunc(specialInput);
-  // glutKeyboardFunc(keyPressed);
-  // glutReshapeFunc(reshape);
-
-  // WorldViewer_init(&viewer, &world, vehicle);
-
-
-  // // run the main GL loop
-  // glutMainLoop();
-
-  // // check out the images not needed anymore
-  // Image_free(vehicle_texture);
-  // Image_free(surface_texture);
-  // Image_free(surface_elevation);
-
-  // // cleanup
-  // World_destroy(&world);
   return 0;
 }

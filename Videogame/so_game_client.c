@@ -36,23 +36,50 @@ sem_t sem_world_c;
 //se recv() restituisce 0 o un errore di socket (ENOTCONN et similia), vuol dire che la comunicazione è stata chiusa. Idem per recvfrom
 //send() invece, in caso di errore (ENOTCONN et similia), restituisce -1 e setta errno a un certo valore. Idem per sendto
 
-void handle_sigint(int sig){
-	if (DEBUG) {printf("[CLIENT] Caught signal %d\n", sig);
-				printf("[CLIENT] Procedo a chiudere semafori e socket\n");
-	}
+void handle_signal(int sig){
+    int ret;
+    switch(sig){
+        case SIGHUP:
+            break;
+        case SIGTERM:
+        case SIGQUIT:
+        case SIGINT:
+            if (DEBUG) printf("Closing...\n");
+            ret = close(socket_desc);
+            ERROR_HELPER(ret, "Error in closing socket desc TCP");
 
-	int ret = close(socket_desc);
-	ERROR_HELPER(ret, "Error in closing socket desc TCP");
+            ret = close(socket_desc_UDP);
+            ERROR_HELPER(ret, "Error in closing socket desc UDP");
 
-	ret = close(socket_desc_UDP);
-	ERROR_HELPER(ret, "Error in closing socket desc UDP");
+            ret = sem_destroy(&sem_world_c);
+            ERROR_HELPER(ret, "Error in destroy sem_world_c");
 
-    ret = sem_destroy(&sem_world_c);
-    ERROR_HELPER(ret, "Error in destroy sem_world_c");
+            if (DEBUG) printf("Socket chiuse e semafori distrutti\n");
 
-	if (DEBUG) printf("[CLIENT] Socket chiuse\n");
+            World_destroy(&world);
 
-	signal(SIGINT, handle_sigint);
+            if (DEBUG) printf("Mondo distrutto\n");
+        case SIGSEGV:
+            if (DEBUG) printf("Segmentation fault... closing\n");
+            ret = close(socket_desc);
+            ERROR_HELPER(ret, "Error in closing socket desc TCP");
+
+            ret = close(socket_desc_UDP);
+            ERROR_HELPER(ret, "Error in closing socket desc UDP");
+
+            ret = sem_destroy(&sem_world_c);
+            ERROR_HELPER(ret, "Error in destroy sem_world_c");
+
+            if (DEBUG) printf("Socket chiuse e semafori distrutti\n");
+
+            World_destroy(&world);
+
+            if (DEBUG) printf("Mondo distrutto\n");
+        default:
+            if (DEBUG) printf("Caught wrong signal...\n");
+            return;
+    }
+
 }
 
 
@@ -79,9 +106,6 @@ void* thread_listener_tcp(void* client_args){
 
     thread_client_args* arg = (thread_client_args*) client_args;
     int socket=arg->socket_desc_TCP;        //socket TCP
-    //int id=arg->id;
-    //Image* map_texture=arg->map_texture;
-    //Vehicle vehicle=arg->v;
 
     //Ricezione degli ImagePacket contenenti id e texture di tutti i client presenti nel mondo
     char* user = (char*)malloc(DIM_BUFF*sizeof(char));
@@ -105,19 +129,12 @@ void* thread_listener_tcp(void* client_args){
 
         if (DEBUG) printf("[TCP] Ricevuti i client connessi\n");
 
-        // to send its texture
-        // sent from server to client
-        //       (with type=PostTexture and id=0) to assign the surface texture
-        //       (with type=PostElevation and id=0) to assign the surface texture
-        //       (with type=PostTexture and id>0) to assign the  texture to vehicle id
-
-        /**typedef struct {
-          PacketHeader header;
-          int id;
-          Image* image;
-        } ImagePacket;**/
+        if (DEBUG) printf("[TCP] Deserializzo user\n");
 
         PacketHeader* clienth = Packet_deserialize(user, msg_len);
+
+        if (DEBUG) printf("[TCP] User deserializzato\n");
+
         if (clienth->type==PostTexture){
 			ImagePacket* client=(ImagePacket*)clienth;
 
@@ -211,7 +228,7 @@ void* thread_listener_udp_M(void* client_args){
         ret = send_UDP(socket_UDP, vehicle_update, vehicle_update_len, 0, (struct sockaddr*) &server_UDP, slen);
         PTHREAD_ERROR_HELPER(ret, "Could not send vehicle updates to server");
         if (DEBUG) printf("[UDP SENDER] Inviato pacchetto con le proprie forze\n");
-        sleep(0.5);
+        sleep(2);
 
 
     }
@@ -244,11 +261,8 @@ void* thread_listener_udp_W(void* client_args){
 
     thread_client_args* arg = (thread_client_args*) client_args;
     int socket_UDP = arg->socket_desc_UDP;
-    //int id=arg->id;
-    //Image* map_texture=arg->map_texture;
-    //Vehicle vehicle=arg->v;
     struct sockaddr_in server_UDP = arg->server_addr_UDP;
-    int slen = sizeof(server_UDP);
+    socklen_t slen;
 
 
     /**
@@ -270,11 +284,13 @@ void* thread_listener_udp_W(void* client_args){
     //richiesta di tutti gli update degli altri veicoli, per aggiornare il proprio mondo
     //da sistemare la dimensione
 
-        //non sappiamo quanto è grande la stringa che ci deve arrivare e che dobbiamo convertire in numero intero
+        if (DEBUG) printf("[UDP RECEIVER] I'm alive\n");
 
+        //non sappiamo quanto è grande la stringa che ci deve arrivare e che dobbiamo convertire in numero intero
+        slen = sizeof(struct sockaddr_in);
         bytes_read = 0;
 
-        ret= recv_UDP_packet(socket_UDP,world_update,0, NULL, NULL, &bytes_read);
+        ret= recv_UDP_packet(socket_UDP,world_update,0, (struct sockaddr*) &server_UDP, &slen, &bytes_read);
         PTHREAD_ERROR_HELPER(ret, "Could not receive world update");
         dimensione_mondo = bytes_read;
 
@@ -290,7 +306,6 @@ void* thread_listener_udp_W(void* client_args){
         int i;
         for(i=0;i<num_vehicles;i++){
             update = *(client_update+i*sizeof(ClientUpdate));
-
 
             //estrapoliamo tutti i dati per il singolo veicolo presente nel mondo, identificato da "id"
 
@@ -333,80 +348,7 @@ void* thread_listener_udp_W(void* client_args){
 }
 
 
-/**void keyPressed(unsigned char key, int x, int y)
-{
-  switch(key){
-  case 27:
-    glutDestroyWindow(window);
-    exit(0);
-  case ' ':
-    vehicle->translational_force_update = 0;
-    vehicle->rotational_force_update = 0;
-    break;
-  case '+':
-    viewer.zoom *= 1.1f;
-    break;
-  case '-':
-    viewer.zoom /= 1.1f;
-    break;
-  case '1':
-    viewer.view_type = Inside;
-    break;
-  case '2':
-    viewer.view_type = Outside;
-    break;
-  case '3':
-    viewer.view_type = Global;
-    break;
-  }
-}
-
-
-void specialInput(int key, int x, int y) {
-  switch(key){
-  case GLUT_KEY_UP:
-    vehicle->translational_force_update += 0.1;
-    break;
-  case GLUT_KEY_DOWN:
-    vehicle->translational_force_update -= 0.1;
-    break;
-  case GLUT_KEY_LEFT:
-    vehicle->rotational_force_update += 0.1;
-    break;
-  case GLUT_KEY_RIGHT:
-    vehicle->rotational_force_update -= 0.1;
-    break;
-  case GLUT_KEY_PAGE_UP:
-    viewer.camera_z+=0.1;
-    break;
-  case GLUT_KEY_PAGE_DOWN:
-    viewer.camera_z-=0.1;
-    break;
-  }
-}
-
-
-void display(void) {
-  WorldViewer_draw(&viewer);
-}
-
-
-void reshape(int width, int height) {
-  WorldViewer_reshapeViewport(&viewer, width, height);
-}
-
-void idle(void) {
-  World_update(&world);
-  usleep(30000);
-  glutPostRedisplay();
-
-  // decay the commands
-  vehicle->translational_force_update *= 0.999;
-  vehicle->rotational_force_update *= 0.7;
-}**/
-
 int main(int argc, char **argv) {
-	signal(SIGINT, handle_sigint);
 
 	if (argc<3) {
 		printf("usage: %s <server_address> <player texture>\n", argv[1]);
@@ -431,12 +373,23 @@ int main(int argc, char **argv) {
     ret = sem_init(&sem_world_c, 0, 1);
     ERROR_HELPER(ret, "Failed to initialization of sem_world_c");
 
+    struct sigaction sa;
+    sa.sa_handler = handle_signal;
+    sa.sa_flags = SA_RESTART;
+    sigfillset(&sa.sa_mask);
+
+    ret = sigaction(SIGINT, &sa, NULL);
+    ERROR_HELPER(ret, "Could not handle SIGINT");
+    ret = sigaction(SIGTERM, &sa, NULL);
+    ERROR_HELPER(ret, "Could not handle SIGTERM");
+    ret = sigaction(SIGQUIT, &sa, NULL);
+    ERROR_HELPER(ret, "Could not handle SIGQUIT");
+    ret = sigaction(SIGHUP, &sa, NULL);
+    ERROR_HELPER(ret, "Could not handle SIGHUP");
+    ret = sigaction(SIGSEGV, &sa, NULL);
+    ERROR_HELPER(ret, "Could not handle SIGSEGV");
+
 	Image* my_texture_for_server = my_texture;
-	// todo: connect to the server
-	//   -get ad id
-	//   -send your texture to the server (so that all can see you)
-	//   -get an elevation map
-	//   -get the texture of the surface
 
 	//variables for handling a socket
 	struct sockaddr_in server_addr = {0};    //some fields are required to be filled with 0
@@ -445,9 +398,8 @@ int main(int argc, char **argv) {
 	socket_desc = socket(AF_INET, SOCK_STREAM, 0);
 	ERROR_HELPER(socket_desc, "Could not create socket");
 
-
 	//set up parameters for connection
-	server_addr.sin_addr.s_addr = inet_addr("127.0.0.1");
+	server_addr.sin_addr.s_addr = inet_addr(argv[1]);
 	server_addr.sin_family = AF_INET;
 	server_addr.sin_port = htons(SERVER_PORT_TCP);
 
@@ -455,20 +407,15 @@ int main(int argc, char **argv) {
 	ret = connect(socket_desc, (struct sockaddr*) &server_addr, sizeof(struct sockaddr_in));
 	ERROR_HELPER(ret, "Could not connect to socket");
 
-
-
 	//variable for UDP socket
 	struct sockaddr_in server_addr_UDP = {0};
 	//creating UDP sopcket
 	socket_desc_UDP = socket(AF_INET, SOCK_DGRAM, 0);
 	ERROR_HELPER(socket_desc_UDP, "Could not create socket udp");
 	//set up parameters
-	server_addr_UDP.sin_addr.s_addr = inet_addr("127.0.0.1");
+	server_addr_UDP.sin_addr.s_addr = inet_addr(argv[1]);
 	server_addr_UDP.sin_family = AF_INET;
-	server_addr_UDP.sin_port = htons(SERVER_PORT_UDP);
-	//bind UDP socket
-	//ret = bind(socket_desc_UDP, (struct sockaddr*) &server_addr_UDP, sizeof(struct sockaddr_in));
-	//ERROR_HELPER(ret, "Could not connect to socket (udp bind W)");
+	server_addr_UDP.sin_port = htons(SERVER_PORT_UDP);;
 
 
 	/**LOGIN**/
@@ -541,12 +488,12 @@ int main(int argc, char **argv) {
 		ret = send_TCP(socket_desc, password, pass_length+1, 0);
 		ERROR_HELPER(ret, "Failed to send login data");
 
-		if (DEBUG) printf("[LOGIN] Nuova password inviata\n");;
+		if (DEBUG) printf("[LOGIN] Nuova password inviata\n");
 
 		ret = recv_TCP(socket_desc, stato_login, 1, 0);
 		ERROR_HELPER(ret, "Failed to receive login's state");
 
-		if (DEBUG) printf("[LOGIN] login state della password ricevuto\n");;
+		if (DEBUG) printf("[LOGIN] login state della password ricevuto\n");
 
         login_state = atoi(stato_login);
 	}
@@ -557,6 +504,7 @@ int main(int argc, char **argv) {
     int bytes_read = 0;
 
 	if (login_state == 0){
+
 		printf("You're signed up with user: %s, welcome to the game!\n", username);	//password salvata
 
 		//requesting and receving the ID
@@ -564,7 +512,6 @@ int main(int argc, char **argv) {
 		PacketHeader id_head;
 		request_id->header=id_head;
 		request_id->header.type=GetId;
-		//request_id->header.size=sizeof(IdPacket);
 		request_id->id = -1;
 
 		char *idPacket_request = (char *)malloc(DIM_BUFF*sizeof(char));
@@ -625,7 +572,6 @@ int main(int argc, char **argv) {
 		PacketHeader img_head;
 		my_texture->header=img_head;
 		my_texture->header.type=PostTexture;
-		//my_texture->header.size=sizeof(ImagePacket);
 		my_texture->id=id->id;
 		my_texture->image=my_texture_for_server;
 
@@ -634,13 +580,6 @@ int main(int argc, char **argv) {
         if (DEBUG) printf("[TEXTURE] Pacchetto my_texture allocato. Serializzo.\n");
 
 		size_t texture_for_server_len = Packet_serialize(texture_for_server, &(my_texture->header));
-
-        /*if (DEBUG) {
-            int i;
-            for (i=0; i < texture_for_server_len; i++)
-                printf("%d", (int)texture_for_server[i]);
-            printf("\n");
-        }*/
 
         if (DEBUG) printf("[TEXTURE] Texture serializzata.\n");
 
@@ -681,10 +620,6 @@ int main(int argc, char **argv) {
 
         if (DEBUG) printf("[TEXTURE] my_texture_server ricevuta\n");
 
-        if (ret != (int) sizeof(ImagePacket)){    //praticamente inutile, sarebbe da modificare
-            if (DEBUG) printf("[TEXTURE] C'è un problema! Il numero di byte arrivati non corrisponde!\n");
-        }
-
 		msg_len=bytes_read;
 
         if (DEBUG) printf("[TEXTURE] Deserializzo la mia texture ricevuta\n");
@@ -702,14 +637,10 @@ int main(int argc, char **argv) {
 		my_id = id->id;
 		my_texture_from_server = my_texture_received->image;
 
-        if (DEBUG) printf("[CLIENT] Parametri aggiornati\n");
+        if (DEBUG) printf("[CLIENT] Parametri aggiornati\n"); 
+    }
 
-	}
 
-  	/** Se utente esiste e la password è corretta, allora il server gli invia il suo id, così il client potrà utilizzarlo successivamente quando spedirà
-  	 * l'IdPacket per ricevere la texture
-   	 *	[TODO]
-   	 **/
 
    	else if (login_state == 1) {
    		printf("Login success, welcome back %s\n", username);
@@ -718,7 +649,6 @@ int main(int argc, char **argv) {
 		PacketHeader request_texture_head;
 		request_texture->header=request_texture_head;
 		request_texture->id=-1; //ancora non lo conosco lo scopro nella risposta
-		//request_texture->header.size=sizeof(IdPacket);
 		request_texture->header.type=GetTexture;
 
 		char *request_texture_for_server = (char *)malloc(DIM_BUFF*sizeof(char));
@@ -745,31 +675,16 @@ int main(int argc, char **argv) {
 		my_id = my_texture_received->id;
 		my_texture_from_server = my_texture_received->image;
 
-
-		// ricezione ID in modo da inserirla successivamente nel ID packet
-		// [TODO]
-
-
 		// DA FINIRE E CONTROLLARNE LA CORRETTEZZA
 	}
 
-
-  	/**
-  	Se il client è un nuovo utente manderà la richiesta dell'id al server con un IdPacket col campo id settato a -1. Altrimenti, quel campo id sarà settato
-  	al suo id che aveva prima di disconnettersi. Tutto ciò serve per far capire al server da dove deve estrapolare la texture: se id = -1 allora riceve la
-  	texture dal client e gliela reinvia. Altrimenti, lui la prende dalla sua cella di clients e gliela reinvia.
-	**/
-
     if (DEBUG) printf("[ELEVATION_MAP] Faccio la richiesta di elevation_map\n");
-
-
 
 	//requesting and receving elevation map
 	IdPacket* request_elevation=(IdPacket*)malloc(sizeof(IdPacket));
 	PacketHeader request_elevation_head;
 	request_elevation->header=request_elevation_head;
 	request_elevation->id=my_id;
-	//request_elevation->header.size=sizeof(IdPacket);
 	request_elevation->header.type=GetElevation;
 
     if (DEBUG) printf("[ELEVATION_MAP] Pacchetto richiesta elevation_map creato\n");
@@ -835,7 +750,6 @@ int main(int argc, char **argv) {
 	PacketHeader request_map_head;
 	request_map->header=request_map_head;
 	request_map->header.type=GetTexture;
-	//request_map->header.size=sizeof(IdPacket);
 	request_map->id=my_id;
 
     if (DEBUG) printf("[MAP] Pacchetto creato. Serializzo\n");
@@ -908,25 +822,28 @@ int main(int argc, char **argv) {
 	ret = pthread_create(&thread_tcp, NULL, thread_listener_tcp, (void*) args);
 	ERROR_HELPER(ret, "Could not create thread");
 
+    if (DEBUG) printf("TCP thread created\n");
+
+    ret = pthread_create(&thread_udp_M, NULL, thread_listener_udp_M, (void*) args);
+    ERROR_HELPER(ret, "Could not create thread");
+
+    if (DEBUG) printf("UDP sender thread created\n");
+
+    ret = pthread_create(&thread_udp_W, NULL, thread_listener_udp_W, (void*) args);
+    ERROR_HELPER(ret, "Could not create thread");
+
+    if (DEBUG) printf("UDP receiver thread created\n");
+
 	ret = pthread_detach(thread_tcp);
 	ERROR_HELPER(ret, "Could not detach thread");
 
-	ret = pthread_create(&thread_udp_M, NULL, thread_listener_udp_M, (void*) args);
-	ERROR_HELPER(ret, "Could not create thread");
-
 	ret = pthread_detach(thread_udp_M);
 	ERROR_HELPER(ret, "Could not detach thread");
-
-	ret = pthread_create(&thread_udp_W, NULL, thread_listener_udp_W, (void*) args);
-	ERROR_HELPER(ret, "Could not create thread");
 
 	ret = pthread_detach(thread_udp_W);
 	ERROR_HELPER(ret, "Could not detach thread");
 
 	WorldViewer_runGlobal(&world, vehicle, &argc, argv);
-
-	// cleanup
-	World_destroy(&world);
 
 	return 0;
 }
