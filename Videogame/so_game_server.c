@@ -847,10 +847,12 @@ void* thread_server_UDP_sender(void* args){
 		// invio a tutti i connessi
 
 		for(i=0;i<MAX_USER_NUM;i++){
-			if(client[i].status==1 && client[i].addr!=NULL){
-                client_addr = *client[i].addr;
+            if(DEBUG)printf("indirzzo di %d è %d ed il suo stato è %d \n",i,client[i].addr.sin_addr.s_addr ,client[i].status);
+			if(client[i].status==1 && client[i].addr.sin_addr.s_addr!=0){
+                client_addr = client[i].addr;
                 slen = sizeof(struct sockaddr_in);
 				ret = send_UDP(socket,msg,packet_len,0,(const struct sockaddr*) &client_addr, slen);
+                if(DEBUG)printf("inviato mondo a %d \n",client_addr.sin_addr.s_addr);
 				if (ret == -2) {
 					printf("Could not send user data to client\n");
 				}
@@ -891,7 +893,7 @@ void* thread_server_UDP_receiver(void* args){
     clients* client=arg->list;
 
     socket = arg->socket_desc_UDP_server;
-    struct sockaddr_in client_addr;
+    struct sockaddr_in client_addr={0};
     socklen_t slen;
 
     int bytes_read;
@@ -920,13 +922,10 @@ void* thread_server_UDP_receiver(void* args){
 
             if (DEBUG) printf("[UDP RECEIVER] Pacchetto deserializzato\n");
 
-            if(client[packet->id].addr!=NULL){
-                if (DEBUG) printf("[UDP RECEIVER] Indirizzo del client già presente nella struttura dati\n");
-            }
-            else{
-                client[packet->id].addr = &client_addr;
-                if (DEBUG) printf("[UDP RECEIVER] Aggiornato indirizzo del client (primo pacchetto UDP)\n");
-            }
+
+            client[packet->id].addr = client_addr;
+            if (DEBUG) printf("[UDP RECEIVER] Aggiornato indirizzo del client %d ed è %d \n",packet->id,client[packet->id].addr.sin_addr.s_addr);
+           
 
             //sostuisco le sue intenzioni di movimento ricevute nelle sue variabili nel mondo
 

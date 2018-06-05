@@ -196,8 +196,8 @@ void* thread_listener_udp_M(void* client_args){
     int id=arg->id;
     //Image* map_texture=arg->map_texture;
     Vehicle veicolo=arg->v;
-    struct sockaddr_in server_UDP = arg->server_addr_UDP;
-    int slen = sizeof(server_UDP);
+    struct sockaddr_in* server_UDP = arg->server_addr_UDP;
+    int slen = sizeof(struct sockaddr_in);
 
 
     /**
@@ -223,9 +223,9 @@ void* thread_listener_udp_M(void* client_args){
         update->id = id;
 
         int vehicle_update_len = Packet_serialize(vehicle_update, &(update->header));
-        if (DEBUG) printf("[UDP SENDER] Serializzato pacchetto con le proprie forze\n");
+        if (DEBUG) printf("[UDP SENDER] Serializzato pacchetto con le proprie forze  , io ho id %d \n",update->id);
 
-        ret = send_UDP(socket_UDP, vehicle_update, vehicle_update_len, 0, (struct sockaddr*) &server_UDP, slen);
+        ret = send_UDP(socket_UDP, vehicle_update, vehicle_update_len, 0, (struct sockaddr*) server_UDP, slen);
         PTHREAD_ERROR_HELPER(ret, "Could not send vehicle updates to server");
         if (DEBUG) printf("[UDP SENDER] Inviato pacchetto con le proprie forze\n");
         sleep(2);
@@ -261,7 +261,7 @@ void* thread_listener_udp_W(void* client_args){
 
     thread_client_args* arg = (thread_client_args*) client_args;
     int socket_UDP = arg->socket_desc_UDP;
-    struct sockaddr_in server_UDP = arg->server_addr_UDP;
+    struct sockaddr_in* server_UDP = arg->server_addr_UDP;
     socklen_t slen;
 
 
@@ -290,7 +290,7 @@ void* thread_listener_udp_W(void* client_args){
         slen = sizeof(struct sockaddr_in);
         bytes_read = 0;
 
-        ret= recv_UDP_packet(socket_UDP,world_update,0, (struct sockaddr*) &server_UDP, &slen, &bytes_read);
+        ret= recv_UDP_packet(socket_UDP,world_update,0, (struct sockaddr*) server_UDP, &slen, &bytes_read);
         PTHREAD_ERROR_HELPER(ret, "Could not receive world update");
         dimensione_mondo = bytes_read;
 
@@ -813,7 +813,7 @@ int main(int argc, char **argv) {
 	args->socket_desc_TCP=socket_desc;
 	args->socket_desc_UDP=socket_desc_UDP;
 	args->map_texture=map_texture;
-	args->server_addr_UDP = server_addr_UDP;
+	args->server_addr_UDP = &server_addr_UDP;
 	pthread_t thread_tcp;
 	pthread_t thread_udp_M;
 	pthread_t thread_udp_W;

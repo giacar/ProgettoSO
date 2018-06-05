@@ -10,7 +10,7 @@ typedef struct clients{
 	int id;
 	int status; //1:connected 0:disconnected -1 NON INIZIALIZZATO
 	Image* texture;
-	struct sockaddr_in* addr; //to send data over udp socket to the client
+	struct sockaddr_in addr; //to send data over udp socket to the client
 	int socket_TCP;  //to send data over tcp to the client(la socket ricevuta dalla accept)
 }clients;
 
@@ -33,7 +33,7 @@ typedef struct thread_client_args{
     int socket_desc_UDP;    //descritto socket per UDP 
     int id;     //id ricevuto dal server
     Image* map_texture; //texture della mappa che andrà aggiornato
-    struct sockaddr_in server_addr_UDP;  //necessario per la comunicazione UDP
+    struct sockaddr_in* server_addr_UDP;  //necessario per la comunicazione UDP
 
 }thread_client_args;
 
