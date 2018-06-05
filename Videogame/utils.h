@@ -33,7 +33,7 @@ typedef struct thread_client_args{
     int socket_desc_UDP;    //descritto socket per UDP 
     int id;     //id ricevuto dal server
     Image* map_texture; //texture della mappa che andrà aggiornato
-    struct sockaddr_in* server_addr_UDP;  //necessario per la comunicazione UDP
+    struct sockaddr_in server_addr_UDP;  //necessario per la comunicazione UDP
 
 }thread_client_args;
 
