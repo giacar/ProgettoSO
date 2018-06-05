@@ -28,7 +28,7 @@ typedef struct thread_server_UDP_args{
 }thread_server_UDP_args;
 
 typedef struct thread_client_args{
-    Vehicle v;  //veicolo del client
+    Vehicle *v;  //veicolo del client
     int socket_desc_TCP;    //descrittore della socket con cui comunicare col server(TCP)
     int socket_desc_UDP;    //descritto socket per UDP 
     int id;     //id ricevuto dal server

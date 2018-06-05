@@ -913,6 +913,8 @@ void* thread_server_UDP_receiver(void* args){
             }
 
             if (DEBUG) printf("[UDP RECEIVER] Ricevuto pacchetto\n");
+            
+
 
             ret = sem_wait(&sem_world);
             PTHREAD_ERROR_HELPER(ret, "Failed to wait sem_worldin thread_UDP_receiver");
@@ -921,6 +923,8 @@ void* thread_server_UDP_receiver(void* args){
             packet = (VehicleUpdatePacket *)Packet_deserialize(msg, bytes_read);
 
             if (DEBUG) printf("[UDP RECEIVER] Pacchetto deserializzato\n");
+            if(DEBUG)printf("%f e %f \n",packet->rotational_force , packet->translational_force);
+
 
 
             client[packet->id].addr = client_addr;

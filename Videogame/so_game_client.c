@@ -195,7 +195,7 @@ void* thread_listener_udp_M(void* client_args){
     int socket_UDP = arg->socket_desc_UDP;
     int id=arg->id;
     //Image* map_texture=arg->map_texture;
-    Vehicle veicolo=arg->v;
+    Vehicle* veicolo=arg->v;
     struct sockaddr_in* server_UDP = arg->server_addr_UDP;
     int slen = sizeof(struct sockaddr_in);
 
@@ -214,16 +214,18 @@ void* thread_listener_udp_M(void* client_args){
 
     //creazione di un pacchetto di update personale da inviare al server.
 
-        update_head.size = sizeof(VehicleUpdatePacket);
+        //update_head.size = sizeof(VehicleUpdatePacket);
         update_head.type = VehicleUpdate;
 
         update->header=update_head;
-        update->translational_force = veicolo.translational_force_update;
-        update->rotational_force = veicolo.rotational_force_update;
+        update->translational_force = veicolo->translational_force_update;
+        update->rotational_force = veicolo->rotational_force_update;
         update->id = id;
 
         int vehicle_update_len = Packet_serialize(vehicle_update, &(update->header));
-        if (DEBUG) printf("[UDP SENDER] Serializzato pacchetto con le proprie forze  , io ho id %d \n",update->id);
+        if (DEBUG) printf("[UDP SENDER] Serializzato pacchetto con le proprie forze  di lunghezza %d , io ho id %d \n", vehicle_update_len,update->id);
+        
+        if(DEBUG)printf("%f e %f \n",update->rotational_force , update->translational_force);
 
         ret = send_UDP(socket_UDP, vehicle_update, vehicle_update_len, 0, (struct sockaddr*) server_UDP, slen);
         PTHREAD_ERROR_HELPER(ret, "Could not send vehicle updates to server");
@@ -808,7 +810,7 @@ int main(int argc, char **argv) {
 	// request the texture and add the player to the pool
 	/*FILLME*/
 	thread_client_args* args=malloc(sizeof(thread_client_args));
-	args->v=*vehicle;
+	args->v=vehicle;
 	args->id=my_id;
 	args->socket_desc_TCP=socket_desc;
 	args->socket_desc_UDP=socket_desc_UDP;
