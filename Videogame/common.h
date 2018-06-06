@@ -14,7 +14,7 @@
 
 /* Configuration parameters */
 #define SERVER_PORT_TCP    2015
-#define SERVER_PORT_UDP    854136
+#define SERVER_PORT_UDP    2014
 #define FINISH_COMMAND     "Finish"
 #define MAX_USER_NUM	   20
 #define DIM_BUFF			1000000

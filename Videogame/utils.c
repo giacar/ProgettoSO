@@ -148,7 +148,7 @@ int recv_UDP_packet(int socket, char *buf, int flags, struct sockaddr *src_addr,
 		ret = recvfrom(socket, buf, sizeof(PacketHeader), flags, src_addr, addrlen);
 	} while (ret == -1 && errno == EINTR);
 
-	bytes_letti+=ret;
+	bytes_letti+=sizeof(PacketHeader);
 
 	if (DEBUG) printf("[RECV_UDP_PACKET] Byte letti (header) = %d\n", bytes_letti);
 
@@ -166,7 +166,6 @@ int recv_UDP_packet(int socket, char *buf, int flags, struct sockaddr *src_addr,
 	bytes_letti += ret;
 
 	if (DEBUG) printf("[RECV_UDP_PACKET] Packet size (complete) = %d\n",bytes_letti);
-
 
 	*bytes_read = bytes_letti;
 
