@@ -809,7 +809,7 @@ void* thread_server_UDP_sender(void* args){
 
     socket = arg->socket_desc_UDP_server;
     clients* client=arg->list;
-    socklen_t slen;
+    int slen;
 
 
 
@@ -880,7 +880,7 @@ void* thread_server_UDP_sender(void* args){
 			if(client[i].status==1 && client[i].addr.sin_addr.s_addr!=0){
                 client_addr = client[i].addr;
                 slen = sizeof(struct sockaddr);
-				ret = send_UDP(socket,msg,packet_len,0,(struct sockaddr*) &client_addr, slen);
+				ret = send_UDP(socket,msg,packet_len,0, &client_addr, slen);
                 if (DEBUG) printf("inviato mondo a %d (id = %d)\n",client_addr.sin_addr.s_addr, client[i].id);
 				if (ret == -2) {
 					printf("Could not send user data to client\n");

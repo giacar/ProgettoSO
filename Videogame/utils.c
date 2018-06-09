@@ -222,12 +222,12 @@ int recv_UDP(int socket, char *buf, size_t len, int flags, struct sockaddr *src_
 	return ret;
 }
 
-int send_UDP(int socket, const char *buf, size_t len, int flags, const struct sockaddr *dest_addr, socklen_t addrlen) {
+int send_UDP(int socket, const char *buf, size_t len, int flags, struct sockaddr_in* dest_addr, int addrlen) {
 	int ret, bytes_sent = 0;
 
 	while (1) {
 
-		ret = sendto(socket, buf+bytes_sent, len-bytes_sent, flags, dest_addr, addrlen);
+		ret = sendto(socket, buf+bytes_sent, len-bytes_sent, flags, (const struct sockaddr*) dest_addr, (socklen_t) addrlen);
 
 		if (errno == EINTR) {
 			bytes_sent += ret;

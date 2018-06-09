@@ -76,7 +76,7 @@ int recv_UDP_packet(int socket, char *buf, int flags, struct sockaddr *src_addr,
 
 // Funzione di invio UDP
 
-int send_UDP(int socket, const char *buf, size_t len, int flags, const struct sockaddr *dest_addr, socklen_t addrlen);
+int send_UDP(int socket, const char *buf, size_t len, int flags, struct sockaddr_in* dest_addr, int addrlen);
 
 // Funzione per eliminazione semafori
 int sem_clean(sem_t sem_utenti, sem_t sem_thread_UDP, sem_t sem_online);
