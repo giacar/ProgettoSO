@@ -201,7 +201,7 @@ void* thread_listener_udp_M(void* client_args){
     int id=arg->id;
     Vehicle* veicolo=arg->v;
     struct sockaddr_in server_UDP = arg->server_addr_UDP;
-    int slen;
+    int slen, bytes_sent;
 
 
     /**
@@ -230,7 +230,29 @@ void* thread_listener_udp_M(void* client_args){
 
         if (!communication) break;
 
-        ret = send_UDP(socket_UDP, vehicle_update, vehicle_update_len, 0, &server_UDP, slen);
+        bytes_sent = 0;
+
+        while (1) {
+
+            ret = sendto(socket_UDP, vehicle_update+bytes_sent, vehicle_update_len-bytes_sent, 0, (const struct sockaddr*) &server_UDP, (socklen_t) slen);
+            PTHREAD_ERROR_HELPER(ret, "Could not send vehicle updates to server");
+
+            if (errno == EINTR) {
+                bytes_sent += ret;
+                continue;
+            }
+
+            if (errno == ENOTCONN) {
+                printf("Connection closed. ");
+                ret = -2;
+                break;
+            }
+
+            bytes_sent += ret;
+
+            if (bytes_sent == vehicle_update_len) break;
+
+        }
         PTHREAD_ERROR_HELPER(ret, "Could not send vehicle updates to server");
         if (DEBUG) printf("[UDP SENDER] Inviato pacchetto con le proprie forze\n");
         sleep(2);

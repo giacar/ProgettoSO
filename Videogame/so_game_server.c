@@ -783,7 +783,7 @@ void* thread_server_TCP(void* args){
 
 		if (DEBUG) printf("[TEST PACKET] Pacchetto di test inviato\n");
 
-		sleep(1000);
+		sleep(2);
 	}
 
     if (DEBUG) printf("[TEST PACKET] Pacchetti di test inviati\n");
@@ -809,7 +809,7 @@ void* thread_server_UDP_sender(void* args){
 
     socket = arg->socket_desc_UDP_server;
     clients* client=arg->list;
-    int slen;
+    int slen, bytes_sent;
 
 
 
@@ -880,11 +880,31 @@ void* thread_server_UDP_sender(void* args){
 			if(client[i].status==1 && client[i].addr.sin_addr.s_addr!=0){
                 client_addr = client[i].addr;
                 slen = sizeof(struct sockaddr);
-				ret = send_UDP(socket,msg,packet_len,0, &client_addr, slen);
-                if (DEBUG) printf("inviato mondo a %d (id = %d)\n",client_addr.sin_addr.s_addr, client[i].id);
-				if (ret == -2) {
-					printf("Could not send user data to client\n");
-				}
+                bytes_sent = 0;
+
+				while (1) {
+
+		            ret = sendto(socket, msg+bytes_sent, packet_len-bytes_sent, 0, (const struct sockaddr*) &client_addr, (socklen_t) slen);
+		            PTHREAD_ERROR_HELPER(ret, "Could not send vehicle updates to client");
+
+		            if (errno == EINTR) {
+		                bytes_sent += ret;
+		                continue;
+		            }
+
+		            if (errno == ENOTCONN) {
+		                printf("Connection closed. ");
+		                ret = -2;
+		                break;
+		            }
+
+		            bytes_sent += ret;
+
+		            if (bytes_sent == packet_len) break;
+
+		        }
+		        PTHREAD_ERROR_HELPER(ret, "Could not send vehicle updates to client");
+		        if (DEBUG) printf("inviato mondo a %d (id = %d)\n", client_addr.sin_addr.s_addr, client[i].id);
 			}
 		}
 
