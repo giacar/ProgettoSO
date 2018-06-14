@@ -120,12 +120,9 @@ int send_TCP(int socket, const char *buf, size_t len, int flags) {
 
 		ret = send(socket, buf+bytes_sent, len-bytes_sent, flags);
 
-		if (errno == EINTR) {
-			bytes_sent += ret;
-			continue;
-		}
+		if (ret == -1 && errno == EINTR) continue;
 
-		if (errno == ENOTCONN) {
+		if (ret == -1 && (errno == ENOTCONN || errno == EPIPE)) {
 			printf("Connection closed. ");
 			return -2;
 		}
@@ -148,14 +145,14 @@ int recv_UDP_packet(int socket, char *buf, int flags, struct sockaddr *src_addr,
 		ret = recvfrom(socket, buf, sizeof(PacketHeader), flags, src_addr, addrlen);
 	} while (ret == -1 && errno == EINTR);
 
-	bytes_letti+=sizeof(PacketHeader);
+	bytes_letti+=ret;
 
 	if (DEBUG) printf("[RECV_UDP_PACKET] Byte letti (header) = %d\n", bytes_letti);
 
 	PacketHeader *head = (PacketHeader*)buf;
 	packet_len = head->size;
 
-	if (DEBUG) printf("[RECV_UDP_PACKET] Header size = %d\n",packet_len);
+	if (DEBUG) printf("[RECV_UDP_PACKET] Packet size (in header->size) = %d\n",packet_len);
 
 	if (DEBUG) printf("[RECV_UDP_PACKET] Devo ricevere ancora %d byte\n", packet_len-bytes_letti);
 

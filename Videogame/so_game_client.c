@@ -39,6 +39,8 @@ int communication = 1;
 
 void handle_signal(int sig){
     int ret;
+    printf("Signal caught: %d\n", sig);
+
     switch(sig){
         case SIGHUP:
             break;
@@ -80,6 +82,11 @@ void handle_signal(int sig){
             free(vehicle);
 
             if (DEBUG) printf("Mondo e veicolo distrutti\n");
+
+        case SIGPIPE:
+            if (DEBUG) printf("Socket closed\n");
+            communication = 0;
+
         default:
             if (DEBUG) printf("Caught wrong signal...\n");
             return;
@@ -426,6 +433,8 @@ int main(int argc, char **argv) {
     ERROR_HELPER(ret, "Could not handle SIGHUP");
     ret = sigaction(SIGSEGV, &sa, NULL);
     ERROR_HELPER(ret, "Could not handle SIGSEGV");
+    ret = sigaction(SIGPIPE, &sa, NULL);
+    ERROR_HELPER(ret, "Could not handle SIGPIPE");
 
 	Image* my_texture_for_server = my_texture;
 

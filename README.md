@@ -56,4 +56,4 @@ Please see the [DOCUMENTATION](Documentation.md) file for details
 * <s>BUG nell' invio di pacchetti di dimensione non nota a priori</s>
 * Gestione della memoria
 * BUG world_addVehicle in caso di utente già registrato
-* BUG gli altri giocatori non sono visualizzati nel mondo
+* BUG raramente sono visualizzati nel mondo gli aggiornamenti degli altri giocatori

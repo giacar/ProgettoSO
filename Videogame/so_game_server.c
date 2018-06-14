@@ -33,6 +33,7 @@ World world;                       //mondo
 int server_socket_UDP;			   //descrittore server socket UDP
 int server_socket_TCP;			   //descrittore server socket TCP
 int communication = 1;
+int test_var = 1;
 
 sem_t sem_utenti;
 sem_t sem_world;
@@ -46,6 +47,7 @@ offline_client, e poi si mette a NULL la sua cella in online_client.
 
 void handle_signal(int sig){
     int ret;
+    printf("Signal caught: %d\n", sig);
 
     switch(sig){
         case SIGHUP:
@@ -97,6 +99,10 @@ void handle_signal(int sig){
             World_destroy(&world);
 
             if (DEBUG) printf("Mondo distrutto\n");
+
+        case SIGPIPE:
+            if (DEBUG) printf("Socket closed\n");
+            test_var = 0;
 
         default:
             if (DEBUG) printf("Caught wrong signal...\n");
@@ -595,6 +601,7 @@ void* thread_server_TCP(void* args){
 
     if (DEBUG) printf("[ELEVATION_MAP] Pacchetto creato, serializzo\n");
 
+    memset(elevation_map_buffer, 0, DIM_BUFF);
     elevation_map_len = Packet_serialize(elevation_map_buffer, &(ele_map->header));
 
     if (DEBUG) printf("[ELEVATION_MAP] Serializzazione completata, invio il pacchetto\n");
@@ -767,7 +774,7 @@ void* thread_server_TCP(void* args){
 
 	test_len=Packet_serialize(test_buf,&(test->header));
     if (DEBUG) printf("[TEST PACKET] Serializzato pacchetto di test\n");
-	while(1){
+	while(test_var){
 		ret = send_TCP(socket, test_buf, test_len, 0);
 		if (ret == -2){
 			for(i=0;i<MAX_USER_NUM;i++){
@@ -777,7 +784,6 @@ void* thread_server_TCP(void* args){
 					ret = send_TCP(client[i].socket_TCP, test_buf, test_len, 0);
 				}
 			}
-			pthread_exit(NULL);
 		}
 		else PTHREAD_ERROR_HELPER(ret, "Could not send user data to client\n");
 
@@ -790,9 +796,9 @@ void* thread_server_TCP(void* args){
 
     free(test_buf);
 
+    pthread_exit(NULL);
+
     /** FINE LAVORO TCP **/
-
-
 
 
 }
@@ -1069,6 +1075,8 @@ int main(int argc, char **argv) {
     ERROR_HELPER(ret, "Could not handle SIGHUP");
     ret = sigaction(SIGSEGV, &sa, NULL);
     ERROR_HELPER(ret, "Could not handle SIGSEGV");
+    ret = sigaction(SIGPIPE, &sa, NULL);
+    ERROR_HELPER(ret, "Could not handle SIGPIPE");
 
 	// inizializzo array di utenti
 	for (i = 0; i < MAX_USER_NUM; i++) {
