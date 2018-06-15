@@ -12,6 +12,7 @@ typedef struct clients{
 	Image* texture;
 	struct sockaddr_in addr; //to send data over udp socket to the client
 	int socket_TCP;  //to send data over tcp to the client(la socket ricevuta dalla accept)
+    float x, y, z, theta;
 }clients;
 
 typedef struct thread_server_TCP_args{

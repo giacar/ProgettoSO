@@ -550,6 +550,8 @@ void* thread_server_TCP(void* args){
          // create a vehicle
 		Vehicle* vehicle=(Vehicle*) malloc(sizeof(Vehicle));
 		Vehicle_init(vehicle, &world, idx, client[idx].texture);
+        // inserisco le ultime posizioni nel veicolo
+        vehicle->x = client[idx].x; vehicle->y = client[idx].y; vehicle->z = client[idx].z; vehicle->theta = client[idx].theta;
 
         if (DEBUG) printf("[SERVER] Veicolo creato, lo aggiungo al mondo\n");
 
@@ -721,6 +723,8 @@ void* thread_server_TCP(void* args){
 
     if (DEBUG) printf("[ALIVE] Sto per inviare tutte le texture dei client già connessi\n");
 
+    Vehicle *v_p;
+
     for (i = 0; i < MAX_USER_NUM; i++){
         if (i != idx && client[i].status==1){
             client_alive->id = client[i].id;
@@ -733,6 +737,16 @@ void* thread_server_TCP(void* args){
             if (ret == -2){
                 printf("Could not send user data to client\n");
                 client[idx].status = 0;
+
+                ret = sem_wait(&sem_world);
+                ERROR_HELPER(ret, "Could not wait sem_world");
+                // Salvo l'ultima posizione del veicolo e lo elimino dal mondo
+                v_p = World_getVehicle(&world, client[i].id);
+                client[i].x = v_p->x; client[i].y = v_p->y; client[i].z = v_p->z; client[i].theta = v_p->theta;
+                World_detachVehicle(&world, v_p);
+                ret = sem_post(&sem_world);
+                ERROR_HELPER(ret, "Could not post sem_world");
+
                 ret = close(socket);
                 if (errno != EBADF) ERROR_HELPER(ret, "Could not close socket");
                 pthread_exit(NULL);
@@ -765,7 +779,10 @@ void* thread_server_TCP(void* args){
 
                 ret = sem_wait(&sem_world);
                 ERROR_HELPER(ret, "Could not wait sem_world");
-                World_detachVehicle(&world, World_getVehicle(&world, client[i].id));
+                // Salvo l'ultima posizione del veicolo e lo elimino dal mondo
+                v_p = World_getVehicle(&world, client[i].id);
+                client[i].x = v_p->x; client[i].y = v_p->y; client[i].z = v_p->z; client[i].theta = v_p->theta;
+                World_detachVehicle(&world, v_p);
                 ret = sem_post(&sem_world);
                 ERROR_HELPER(ret, "Could not post sem_world");
 
@@ -796,6 +813,16 @@ void* thread_server_TCP(void* args){
 		ret = send_TCP(socket, test_buf, test_len, 0);
 		if (ret == -2){
             client[idx].status = 0;
+
+            ret = sem_wait(&sem_world);
+            ERROR_HELPER(ret, "Could not wait sem_world");
+            // Salvo l'ultima posizione del veicolo e lo elimino dal mondo
+            v_p = World_getVehicle(&world, client[idx].id);
+            client[i].x = v_p->x; client[i].y = v_p->y; client[i].z = v_p->z; client[i].theta = v_p->theta;
+            World_detachVehicle(&world, v_p);
+            ret = sem_post(&sem_world);
+            ERROR_HELPER(ret, "Could not post sem_world");
+
 			for(i=0;i<MAX_USER_NUM;i++){
 				if(client[i].status==1 && i!=idx){
 					test->id=idx;
@@ -934,7 +961,7 @@ void* thread_server_UDP_sender(void* args){
 
         if (DEBUG) printf("[UDP SENDER] Post effettuata\n");
 
-        sleep(3);
+        usleep(2000);
     }
 
     free(msg);

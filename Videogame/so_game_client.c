@@ -132,7 +132,7 @@ void* thread_listener_tcp(void* client_args){
     while (communication){
 
         //Il server invia le celle dell'array dei connessi che non sono messe a 0 o a -1.
-        if (DEBUG) printf("[TCP] Ricevo gli utenti già nel mondo\n");
+        if (DEBUG) printf("\n[TCP] Ricevo gli utenti già nel mondo\n");
 
         ret = recv_TCP_packet(socket, user, 0, &bytes_read);
         if (ret == -2){
@@ -223,7 +223,11 @@ void* thread_listener_udp_M(void* client_args){
 
     while(communication){
 
+
     //creazione di un pacchetto di update personale da inviare al server.
+        
+        if (DEBUG) printf("\n[UDP SENDER] I'm alive!\n");
+
         slen = sizeof(struct sockaddr);
         update_head.type = VehicleUpdate;
 
@@ -248,7 +252,7 @@ void* thread_listener_udp_M(void* client_args){
         }
         PTHREAD_ERROR_HELPER(ret, "Could not send vehicle updates to server");
         if (DEBUG) printf("[UDP SENDER] Inviato pacchetto con le proprie forze\n");
-        sleep(2);
+        usleep(2000);
 
     }
 
@@ -283,7 +287,7 @@ void* thread_listener_udp_W(void* client_args){
     int socket_UDP = arg->socket_desc_UDP;
     struct sockaddr_in server_UDP = arg->server_addr_UDP;
     socklen_t slen;
-    /*int my_id = arg->id;*/
+    //int my_id = arg->id;
 
 
     /**
@@ -304,7 +308,7 @@ void* thread_listener_udp_W(void* client_args){
     //richiesta di tutti gli update degli altri veicoli, per aggiornare il proprio mondo
     //da sistemare la dimensione
 
-        if (DEBUG) printf("[UDP RECEIVER] I'm alive\n");
+        if (DEBUG) printf("\n[UDP RECEIVER] I'm alive!\n");
 
         //non sappiamo quanto è grande la stringa che ci deve arrivare e che dobbiamo convertire in numero intero
 
