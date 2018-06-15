@@ -54,6 +54,7 @@ Please see the [DOCUMENTATION](Documentation.md) file for details
 * <s>BUG nella parte successiva di richiesta ID</s>
 * <s>BUG di stack smashing</s>
 * <s>BUG nell' invio di pacchetti di dimensione non nota a priori</s>
-* Gestione della memoria
-* BUG world_addVehicle in caso di utente già registrato
-* BUG raramente sono visualizzati nel mondo gli aggiornamenti degli altri giocatori
+* <s>BUG world_addVehicle in caso di utente già registrato</s>
+* BUG Gestione della memoria
+* BUG errore di ricezione dell'elevation map nel client
+* BUG non sono visualizzati nel mondo gli aggiornamenti degli altri giocatori

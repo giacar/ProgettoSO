@@ -64,6 +64,8 @@ void handle_signal(int sig){
             free(vehicle);
 
             if (DEBUG) printf("Mondo e veicolo distrutti\n");
+            break;
+
         case SIGSEGV:
             if (DEBUG) printf("Segmentation fault... closing\n");
             communication = 0;
@@ -82,10 +84,12 @@ void handle_signal(int sig){
             free(vehicle);
 
             if (DEBUG) printf("Mondo e veicolo distrutti\n");
+            break;
 
         case SIGPIPE:
             if (DEBUG) printf("Socket closed\n");
             communication = 0;
+            break;
 
         default:
             if (DEBUG) printf("Caught wrong signal...\n");
@@ -133,7 +137,6 @@ void* thread_listener_tcp(void* client_args){
         ret = recv_TCP_packet(socket, user, 0, &bytes_read);
         if (ret == -2){
         	printf("Could not receive users already in world\n");
-        	exit(1);
         }
         else PTHREAD_ERROR_HELPER(ret, "Could not receive users already in world");
 
@@ -172,8 +175,7 @@ void* thread_listener_tcp(void* client_args){
                 ret = sem_wait(&sem_world_c);
                 PTHREAD_ERROR_HELPER(ret, "Failed to wait sem_world_c  removing vehicle \n");
 
-				Vehicle* v = World_getVehicle(&world, id);
-				World_detachVehicle(&world, v);
+				World_detachVehicle(&world, World_getVehicle(&world, id));
 
                 ret = sem_post(&sem_world_c);
                 PTHREAD_ERROR_HELPER(ret, "Failed to post sem_world_c  removing vehicle \n");
@@ -208,7 +210,7 @@ void* thread_listener_udp_M(void* client_args){
     int id=arg->id;
     Vehicle* veicolo=arg->v;
     struct sockaddr_in server_UDP = arg->server_addr_UDP;
-    int slen, bytes_sent;
+    int slen/*, bytes_sent*/;
 
 
     /**
@@ -237,28 +239,12 @@ void* thread_listener_udp_M(void* client_args){
 
         if (!communication) break;
 
-        bytes_sent = 0;
+        /*bytes_sent = 0;*/
 
-        while (1) {
-
-            ret = sendto(socket_UDP, vehicle_update+bytes_sent, vehicle_update_len-bytes_sent, 0, (const struct sockaddr*) &server_UDP, (socklen_t) slen);
-            PTHREAD_ERROR_HELPER(ret, "Could not send vehicle updates to server");
-
-            if (errno == EINTR) {
-                bytes_sent += ret;
-                continue;
-            }
-
-            if (errno == ENOTCONN) {
-                printf("Connection closed. ");
-                ret = -2;
-                break;
-            }
-
-            bytes_sent += ret;
-
-            if (bytes_sent == vehicle_update_len) break;
-
+        ret = send_UDP(socket_UDP, vehicle_update, vehicle_update_len, 0, &server_UDP, (socklen_t) slen);
+        if (ret == -2) {
+            printf("Connection closed\n");
+            break;
         }
         PTHREAD_ERROR_HELPER(ret, "Could not send vehicle updates to server");
         if (DEBUG) printf("[UDP SENDER] Inviato pacchetto con le proprie forze\n");
@@ -297,7 +283,7 @@ void* thread_listener_udp_W(void* client_args){
     int socket_UDP = arg->socket_desc_UDP;
     struct sockaddr_in server_UDP = arg->server_addr_UDP;
     socklen_t slen;
-    int my_id = arg->id;
+    /*int my_id = arg->id;*/
 
 
     /**
@@ -310,6 +296,7 @@ void* thread_listener_udp_W(void* client_args){
     ClientUpdate update;            //Singolo client update
     Vehicle *v;
     int dimensione_mondo;
+    int bytes_sent = 0;
 
     while(communication){
 
@@ -325,10 +312,10 @@ void* thread_listener_udp_W(void* client_args){
 
         slen = sizeof(server_UDP);
 
-        ret = recvfrom(socket_UDP, world_update, DIM_BUFF, 0, (struct sockaddr*) &server_UDP, &slen);
-        if (ret == -1 || ret == 0){
-            sleep(3);
-            continue;
+        ret = recv_UDP_packet(socket_UDP, world_update, 0, (struct sockaddr*) &server_UDP, &slen, &bytes_sent);
+        if (ret == -2) {
+            printf("Connection closed\n");
+            break;
         }
 
         if (DEBUG) printf("[UDP RECEIVER] Ricevuto pacchetto col mondo aggiornato\n");
@@ -367,8 +354,8 @@ void* thread_listener_udp_W(void* client_args){
                 PTHREAD_ERROR_HELPER(ret, "Failed to wait sem_world_c in thread_UDP_receiver");
 
                 v = World_getVehicle(&world, id);
-                if(v!=0 && my_id != id){
-                    printf("posizioni veicolo ricevute \n");
+                if(v!=0 /*&& my_id != id*/){
+                    printf("[UDP RECEIVER] Posizioni veicolo %d ricevute \n", id);
                     v->x = x;
                     v->y = y;
                     v->theta = theta;
@@ -463,7 +450,7 @@ int main(int argc, char **argv) {
 	//set up parameters
 	server_addr_UDP.sin_addr.s_addr = inet_addr(argv[1]);
 	server_addr_UDP.sin_family = AF_INET;
-	server_addr_UDP.sin_port = htons(SERVER_PORT_UDP);;
+	server_addr_UDP.sin_port = htons(SERVER_PORT_UDP);
 
 
 	/**LOGIN**/
@@ -770,10 +757,17 @@ int main(int argc, char **argv) {
 
     bytes_read = 0;
 
-	ret = recv_TCP_packet(socket_desc, elevation_map, 0, &bytes_read);
+	while((ret = recv(socket_desc, elevation_map, DIM_BUFF, 0)) < 0) {
+        if (ret == -1 && errno == EINTR) continue;
+        if (ret == -1 && (errno == ENOTCONN || errno == EPIPE)) break;
+    }
 	ERROR_HELPER(ret, "Could not read elevation map from socket");
 
     if (DEBUG) printf("[ELEVATION_MAP] Byte letti: %d\n", bytes_read);
+    if (DEBUG) {
+        PacketHeader* p_debug = (PacketHeader *) elevation_map;
+        printf("[ELEVATION_MAP] Campo size dell'header ancora non deserializzato = %d\n", p_debug->size);
+    }
 
     if (DEBUG) printf("[ELEVATION_MAP] Pacchetto ricevuto, deserializzo\n");
 
