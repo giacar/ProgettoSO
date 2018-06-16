@@ -267,9 +267,17 @@ void* thread_server_TCP(void* args){
 		ret = sem_post(&sem_utenti);
         ERROR_HELPER(ret, "Error in sem_utenti post");
 
+        // client attualmente connesso
+        if (client[idx].status == 1) {
+            login_reply = 999;  // identificativo che sono già connesso
+            login_status = login_reply;
+        }
+
 		// informo il client che è già registrato
-		login_reply = 1;
-        login_status = login_reply;
+        else {
+            login_reply = 1;
+            login_status = login_reply;
+        }
 
         sprintf(risposta_login, "%d", login_reply);
 
@@ -279,6 +287,13 @@ void* thread_server_TCP(void* args){
             pthread_exit(NULL);
         }
         else PTHREAD_ERROR_HELPER(ret, "Failed to send login_reply to client");
+
+        // termino il thread in quanto già connesso
+        if (login_status == 999) {
+            ret = close(socket);
+            if (errno != EBADF) ERROR_HELPER(ret, "could not close socket_TCP");
+            pthread_exit(NULL);
+        }
 
 		//ricezione password
 		do {
@@ -512,7 +527,7 @@ void* thread_server_TCP(void* args){
         IdPacket* received = (IdPacket*) Packet_deserialize(idPacket_buf, msg_len);
         if (received->header.type != GetTexture) PTHREAD_ERROR_HELPER(-1, "Connection error (texture request)");
 
-        if (DEBUG) printf("[SERVER] Pacchetto deserializzato. Proceso ad aggiornare la cella del client nell'array\n");
+        if (DEBUG) printf("[SERVER] Pacchetto deserializzato. Procedo ad aggiornare la cella del client nell'array\n");
 
         client[idx].status = 1;
         client[idx].socket_TCP=arg->socket_desc_TCP_client;
@@ -542,7 +557,7 @@ void* thread_server_TCP(void* args){
         }
         else PTHREAD_ERROR_HELPER(ret, "Could not send client texture and id");
 
-        if (DEBUG) printf("[SERVER] Pacchetto inviato. Creo il veicolo del client riconnessosi\n");
+        if (DEBUG) printf("[SERVER] Pacchetto inviato. Creo il veicolo del client riconnesso\n");
 
         ret = sem_wait(&sem_world);
         PTHREAD_ERROR_HELPER(ret, "Error in sem_world wait \n");
@@ -551,7 +566,9 @@ void* thread_server_TCP(void* args){
 		Vehicle* vehicle=(Vehicle*) malloc(sizeof(Vehicle));
 		Vehicle_init(vehicle, &world, idx, client[idx].texture);
         // inserisco le ultime posizioni nel veicolo
-        vehicle->x = client[idx].x; vehicle->y = client[idx].y; vehicle->z = client[idx].z; vehicle->theta = client[idx].theta;
+        vehicle->x = client[idx].x; 
+        vehicle->y = client[idx].y; 
+        vehicle->theta = client[idx].theta;
 
         if (DEBUG) printf("[SERVER] Veicolo creato, lo aggiungo al mondo\n");
 
@@ -565,7 +582,24 @@ void* thread_server_TCP(void* args){
         ret = sem_post(&sem_world);
         PTHREAD_ERROR_HELPER(ret, "Error in sem_world post \n");
 
+        if (DEBUG) printf("[SERVER] Invio le coordinate al client\n");
+
+        ClientUpdate *coord= (ClientUpdate *)malloc(sizeof(ClientUpdate));
+        // completo il pacchetto
+        coord->id = idx; 
+        coord->x = vehicle->x; 
+        coord->y = vehicle->y; 
+        coord->theta = vehicle->theta;
+
+        char *coord_buf = (char *)calloc(DIM_BUFF, sizeof(char));
+        memcpy(coord_buf, coord, sizeof(ClientUpdate));
+
+        ret = send_TCP(socket, coord_buf, sizeof(ClientUpdate), 0);
+        if (ret != sizeof(ClientUpdate)) ERROR_HELPER(-1, "Could not send position");
+
         free(idPacket_buf);
+        free(coord_buf);
+        free(coord);
 
     }
 
@@ -742,7 +776,9 @@ void* thread_server_TCP(void* args){
                 ERROR_HELPER(ret, "Could not wait sem_world");
                 // Salvo l'ultima posizione del veicolo e lo elimino dal mondo
                 v_p = World_getVehicle(&world, client[i].id);
-                client[i].x = v_p->x; client[i].y = v_p->y; client[i].z = v_p->z; client[i].theta = v_p->theta;
+                client[i].x = v_p->x; 
+                client[i].y = v_p->y; 
+                client[i].theta = v_p->theta;
                 World_detachVehicle(&world, v_p);
                 ret = sem_post(&sem_world);
                 ERROR_HELPER(ret, "Could not post sem_world");
@@ -781,7 +817,9 @@ void* thread_server_TCP(void* args){
                 ERROR_HELPER(ret, "Could not wait sem_world");
                 // Salvo l'ultima posizione del veicolo e lo elimino dal mondo
                 v_p = World_getVehicle(&world, client[i].id);
-                client[i].x = v_p->x; client[i].y = v_p->y; client[i].z = v_p->z; client[i].theta = v_p->theta;
+                client[i].x = v_p->x; 
+                client[i].y = v_p->y; 
+                client[i].theta = v_p->theta;
                 World_detachVehicle(&world, v_p);
                 ret = sem_post(&sem_world);
                 ERROR_HELPER(ret, "Could not post sem_world");
@@ -818,7 +856,9 @@ void* thread_server_TCP(void* args){
             ERROR_HELPER(ret, "Could not wait sem_world");
             // Salvo l'ultima posizione del veicolo e lo elimino dal mondo
             v_p = World_getVehicle(&world, client[idx].id);
-            client[i].x = v_p->x; client[i].y = v_p->y; client[i].z = v_p->z; client[i].theta = v_p->theta;
+            client[i].x = v_p->x; 
+            client[i].y = v_p->y; 
+            client[i].theta = v_p->theta;
             World_detachVehicle(&world, v_p);
             ret = sem_post(&sem_world);
             ERROR_HELPER(ret, "Could not post sem_world");
@@ -938,7 +978,11 @@ void* thread_server_UDP_sender(void* args){
                 if (ret == -2) {
                     printf("Could not send user data to client %d\n", i);
                     client[i].status = 0;
-                    World_detachVehicle(&world, World_getVehicle(&world, client[i].id));
+                    Vehicle *vec = World_getVehicle(&world, client[i].id);
+                    client[i].x = vec->x;
+                    client[i].y = vec->y;
+                    client[i].theta = vec->theta;
+                    World_detachVehicle(&world, vec);
                     ret = close(client[i].socket_TCP);
                     if (errno != EBADF) ERROR_HELPER(ret, "Error closing socket"); 
                 }
@@ -985,7 +1029,6 @@ void* thread_server_UDP_receiver(void* args){
     int bytes_read = 0;
 
 	//ricevere tutte le intenzioni di movimento e le sostituisce nei veicoli
-    // DA CONTROLLARNE LA CORRETTEZZA
 
 
     while (communication) {

@@ -47,6 +47,7 @@ void handle_signal(int sig){
         case SIGTERM:
         case SIGQUIT:
         case SIGINT:
+        case SIGALRM:
             if (DEBUG) printf("Closing...\n");
             communication = 0;
             ret = close(socket_desc);
@@ -135,8 +136,11 @@ void* thread_listener_tcp(void* client_args){
         if (DEBUG) printf("\n[TCP] Ricevo gli utenti già nel mondo\n");
 
         ret = recv_TCP_packet(socket, user, 0, &bytes_read);
-        if (ret == -2){
+        if (ret == -2 || ret == 0){
         	printf("Could not receive users already in world\n");
+            alarm(1);
+            printf("\nServer closed, goodbye!\n");
+            exit(0);
         }
         else PTHREAD_ERROR_HELPER(ret, "Could not receive users already in world");
 
@@ -426,6 +430,9 @@ int main(int argc, char **argv) {
     ERROR_HELPER(ret, "Could not handle SIGSEGV");
     ret = sigaction(SIGPIPE, &sa, NULL);
     ERROR_HELPER(ret, "Could not handle SIGPIPE");
+    ret = sigaction(SIGALRM, &sa, NULL);
+    ERROR_HELPER(ret, "Could not handle SIGALRM");
+
 
 	Image* my_texture_for_server = my_texture;
 
@@ -492,8 +499,13 @@ int main(int argc, char **argv) {
 
     login_state = atoi(stato_login);
 
-	if (login_state) printf("\nWelcome back %s.", username);
+	if (login_state == 1) printf("\nWelcome back %s.", username);
 	else if (login_state == 0) printf("\nWelcome %s.", username);
+    else if (login_state == 999) {
+        printf("\nIl client è già connesso. Riprovare più tardi\n");
+        alarm(0);
+        exit(0);
+    }
 	else {
 		// Non c'è più posto tra gli user
 		printf("\nÈ stato raggiunto il massimo numero di utenti. Riprova più tardi.\n");
@@ -541,6 +553,7 @@ int main(int argc, char **argv) {
 	Image* my_texture_from_server = NULL;
     size_t msg_len;                 //utile dichiararla qui, visto che andrà usata in ogni caso
     int bytes_read = 0;
+    ClientUpdate *my_coord = NULL; // qui salverò le vecchie coordinate ricevute dal server per poterle ripristinare se sono già registrato
 
 	if (login_state == 0){
 
@@ -679,8 +692,6 @@ int main(int argc, char **argv) {
         if (DEBUG) printf("[CLIENT] Parametri aggiornati\n"); 
     }
 
-
-
    	else if (login_state == 1) {
    		printf("Login success, welcome back %s\n", username);
 		//requesting and receving texture and id
@@ -692,16 +703,25 @@ int main(int argc, char **argv) {
 
 		char *request_texture_for_server = (char *)malloc(DIM_BUFF*sizeof(char));
 		char *my_texture = (char *)malloc(DIM_BUFF*sizeof(char));
+        char *my_coord_buf = (char *)malloc(DIM_BUFF*sizeof(char));
 
 		size_t request_texture_len = Packet_serialize(request_texture_for_server, &(request_texture->header));
+
+        if (DEBUG) printf("[CLIENT] Invio la richiesta di texture al server\n");
 
 		ret = send_TCP(socket_desc, request_texture_for_server, request_texture_len, 0);
 		ERROR_HELPER(ret, "Could not send my texture for server");
 
+        if (DEBUG) printf("[CLIENT] Richiesta inviata\n");
+
         free(request_texture_for_server);
+
+        if (DEBUG) printf("[CLIENT] Ricevo la texture dal server\n");
 
 		ret = recv_TCP_packet(socket_desc, my_texture, 0, &bytes_read);
 		ERROR_HELPER(ret, "Could not read my texture from socket");
+
+        if (DEBUG) printf("[CLIENT] Texture ricevuta\n");
 
 		msg_len=bytes_read;
 
@@ -714,7 +734,18 @@ int main(int argc, char **argv) {
 		my_id = my_texture_received->id;
 		my_texture_from_server = my_texture_received->image;
 
-		// DA FINIRE E CONTROLLARNE LA CORRETTEZZA
+        if (DEBUG) printf("[CLIENT] Ricevo le vecchie coordinate dal server\n");
+
+        // ricevo le vecchie coordinate
+        ret = recv_TCP(socket_desc, my_coord_buf, sizeof(ClientUpdate), 0);
+        if (ret != sizeof(ClientUpdate)) ERROR_HELPER(-1, "Could not receive old position");
+
+        if (DEBUG) printf("[CLIENT] Coordinate ricevute\n");
+
+        my_coord = (ClientUpdate *)malloc(DIM_BUFF*sizeof(ClientUpdate));
+        memcpy(my_coord, my_coord_buf, sizeof(ClientUpdate));
+
+        free(my_coord_buf);
 	}
 
     if (DEBUG) printf("[ELEVATION_MAP] Faccio la richiesta di elevation_map\n");
@@ -843,7 +874,14 @@ int main(int argc, char **argv) {
 	// construct the world
 	World_init(&world, map_elevation, map_texture, 0.5, 0.5, 0.5);
 	vehicle=(Vehicle*) malloc(sizeof(Vehicle));
-	Vehicle_init(vehicle, &world, my_id, my_texture_from_server);
+    Vehicle_init(vehicle, &world, my_id, my_texture_from_server);
+    // prendo le vecchie coordinate se sono un utente già registrato
+    if (my_coord != NULL) {
+        vehicle->x = my_coord->x; 
+        vehicle->y = my_coord->y; 
+        vehicle->theta = my_coord->theta;
+        free(my_coord);
+    }
 	World_addVehicle(&world, vehicle);
 
 	// spawn a thread that will listen the update messages from

@@ -57,7 +57,6 @@ int Vehicle_update(Vehicle* v, float dt){
   return 1;
 }
 
-
 void Vehicle_init(Vehicle* v, World* w, int id, Image* texture){
   v->world= w;
   v->id=id;
