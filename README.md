@@ -56,6 +56,7 @@ Please see the [DOCUMENTATION](Documentation.md) file for details
 * <s>BUG nell' invio di pacchetti di dimensione non nota a priori</s>
 * <s>BUG world_addVehicle in caso di utente già registrato</s>
 * <s>BUG non sono visualizzati nel mondo gli aggiornamenti degli altri giocatori</s>
+* <s>BUG Crash persistente di ricezione dell'elevation map o della map nel client</s>
 * BUG Spawn nell'ultima posizione registrata in caso di utente già registrato
 * BUG Gestione della memoria
-* BUG Crash persistente di ricezione dell'elevation map nel client
+

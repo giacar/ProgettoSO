@@ -790,36 +790,52 @@ int main(int argc, char **argv) {
 
     if (DEBUG) printf("[ELEVATION_MAP] Attendo il pacchetto di elevation_map dal server\n");
 
-    bytes_read = 0;
+    int ack = 0;
+    char *elevation_reply = (char *)malloc(21);
+    ImagePacket* elevation;
+    PacketHeader* p_debug;
+    while(!ack) {
 
-	while((ret = recv(socket_desc, elevation_map, DIM_BUFF, 0)) < 0) {
-        if (ret == -1 && errno == EINTR) continue;
-        if (ret == -1 && (errno == ENOTCONN || errno == EPIPE)) break;
-    }
-	ERROR_HELPER(ret, "Could not read elevation map from socket");
+        while((ret = recv(socket_desc, elevation_map, DIM_BUFF, 0)) <= 0) {
+            if (ret == -1 && errno == EINTR) continue;
+            if (ret == -1 && (errno == ENOTCONN || errno == EPIPE)) break;
+        }
+        ERROR_HELPER(ret, "Could not read elevation map from socket");
+        
+        msg_len=ret;
 
-    if (DEBUG) printf("[ELEVATION_MAP] Byte letti: %d\n", bytes_read);
-    if (DEBUG) {
-        PacketHeader* p_debug = (PacketHeader *) elevation_map;
-        printf("[ELEVATION_MAP] Campo size dell'header ancora non deserializzato = %d\n", p_debug->size);
-    }
+        if (DEBUG) printf("[ELEVATION_MAP] Byte letti: %d\n", ret);
+        p_debug = (PacketHeader *) elevation_map;
+        if (DEBUG) printf("[ELEVATION_MAP] Campo size dell'header ancora non deserializzato = %d\n", p_debug->size);
 
-    if (DEBUG) printf("[ELEVATION_MAP] Pacchetto ricevuto, deserializzo\n");
+        if (p_debug->size < 0 || p_debug->size != msg_len) ack = 0;
+        else {
+            ack = 1;
+            if (DEBUG) printf("[ELEVATION_MAP] Pacchetto ricevuto, deserializzo\n");
 
-	msg_len=bytes_read;
-	ImagePacket* elevation = (ImagePacket*) Packet_deserialize(elevation_map,msg_len);
-	if(elevation->header.type!=PostElevation && elevation->id!=0) ERROR_HELPER(-1,"error in communication \n");
+            elevation = (ImagePacket*) Packet_deserialize(elevation_map,msg_len);
+            if(elevation->header.type!=PostElevation && elevation->id!=0) ack = 0;
 
-    if (DEBUG) printf("[ELEVATION_MAP] Pacchetto deserializzato\n");
+            if (DEBUG) printf("[ELEVATION_MAP] Pacchetto deserializzato\n");
+        }
+        if (DEBUG) printf("[ELEVATION_MAP] Preparo ack e lo invio\n");
+
+        sprintf(elevation_reply, "%d", ack);
+        ret = send_TCP(socket_desc, elevation_reply, sizeof(elevation_reply)+1, 0);
+        ERROR_HELPER(ret, "Could not send elevation ack to server");
+
+        if (DEBUG) printf("[ELEVATION_MAP] Inviato al server ack = %d\n", ack);
+        
+    } 
 
     free(elevation_map);
+    free(elevation_reply);
 
 	//requesting and receving map
 
     if (DEBUG) printf("[MAP] Richiedo la mappa al server\n");
 
 	char *request_texture_map_for_server = (char *)malloc(DIM_BUFF*sizeof(char)); //buffer per la richiesta della mappa
-	char *texture_map = (char *)malloc(DIM_BUFF*sizeof(char));                    //buffer per la ricezione della mappa
 
     if (DEBUG) printf("[MAP] Creo il pacchetto di richiesta\n");
 
@@ -840,27 +856,49 @@ int main(int argc, char **argv) {
 
     if (DEBUG) printf("[MAP] Byte inviati: %d\n", ret);
 
-    if (DEBUG) printf("[MAP] Invio del pacchetto avvenuto con successo! Attendo la mappa dal server...\n");
+    if (DEBUG) printf("[MAP] Invio del pacchetto avvenuto con successo!\n");
 
     free(request_texture_map_for_server);
 
-    bytes_read = 0;
+    if (DEBUG) printf("[MAP] Attendo la mappa dal server\n");
 
-  	ret = recv_TCP_packet(socket_desc, texture_map, 0, &bytes_read);
-  	ERROR_HELPER(ret, "Could not read map texture from socket");
+    ack = 0;
+    char *map_reply = (char *)malloc(21);
+    char *texture_map = (char *)malloc(DIM_BUFF*sizeof(char));                    //buffer per la ricezione della mappa
+    ImagePacket* map;
+    while (!ack) {
 
-    if (DEBUG) printf("[MAP] Byte letti: %d\n", bytes_read);
+      	while ((ret = recv(socket_desc, texture_map, DIM_BUFF, 0)) <= 0){
+            if (ret == -1 && errno == EINTR) continue;
+            if (ret == -1 && (errno == ENOTCONN || errno == EPIPE)) break;
+        }
+      	ERROR_HELPER(ret, "Could not read map texture from socket");
+        msg_len = ret;
 
-    if (DEBUG) printf("[MAP] Pacchetto ricevuto. Deserializzo\n");
+        if (DEBUG) printf("[MAP] Byte letti: %ld\n", msg_len);
 
-	msg_len=bytes_read;
+        p_debug = (PacketHeader *)texture_map;
+        if (p_debug->size < 0 || p_debug->size != msg_len) ack = 0;
+        else {
+            ack = 1;
+            if (DEBUG) printf("[MAP] Pacchetto ricevuto, deserializzo.\n");
 
-	ImagePacket* map = (ImagePacket*) Packet_deserialize(texture_map,msg_len);
-	if(map->header.type!=PostTexture && map->id!=0) ERROR_HELPER(-1,"error in protocol \n");
+        	map = (ImagePacket*) Packet_deserialize(texture_map,msg_len);
+        	if(map->header.type!=PostTexture && map->id!=0) ERROR_HELPER(-1,"error in protocol \n");
 
-    if (DEBUG) printf("[MAP] Deserializzazione completata!\n");
+            if (DEBUG) printf("[MAP] Deserializzazione completata!\n");
+        }
+
+        sprintf(map_reply, "%d", ack);
+        ret = send_TCP(socket_desc, map_reply, sizeof(map_reply)+1, 0);
+        ERROR_HELPER(ret, "Could not send map ack to server");
+
+        if (DEBUG) printf("[MAP] Inviato al server ack = %d\n", ack);
+
+    }
 
     free(texture_map);
+    free(map_reply);
 
 	// these come from the server
 
@@ -877,9 +915,11 @@ int main(int argc, char **argv) {
     Vehicle_init(vehicle, &world, my_id, my_texture_from_server);
     // prendo le vecchie coordinate se sono un utente già registrato
     if (my_coord != NULL) {
-        vehicle->x = my_coord->x; 
-        vehicle->y = my_coord->y; 
-        vehicle->theta = my_coord->theta;
+        if (DEBUG) printf("[CLIENT] Ecco le mie vecchie coordinate: "
+            "(x,y,theta) = (%f,%f,%f)\n", my_coord->x, my_coord->y, my_coord->theta);
+        vehicle->x = my_coord->x; vehicle->prev_x = my_coord->x;
+        vehicle->y = my_coord->y; vehicle->prev_y = my_coord->y;
+        vehicle->theta = my_coord->theta; vehicle->prev_theta = my_coord->theta;
         free(my_coord);
     }
 	World_addVehicle(&world, vehicle);

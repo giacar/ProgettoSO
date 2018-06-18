@@ -653,21 +653,45 @@ void* thread_server_TCP(void* args){
     if (DEBUG) printf("[ELEVATION_MAP] Il campo size dell'header è: %d, serializzati %ld byte\n", h_test->size, elevation_map_len);
     if (DEBUG) printf("[ELEVATION_MAP] Serializzazione completata, invio il pacchetto\n");
 
-    ret = send_TCP(socket, elevation_map_buffer, elevation_map_len, 0);
-    if (ret == -2) {
-        printf("Could not send elevation map\n");
-        client[idx].status = 0;
-        ret = close(socket);
-        if (errno != EBADF) ERROR_HELPER(ret, "Could not close socket");
-        pthread_exit(NULL);
-    }
-    else PTHREAD_ERROR_HELPER(ret, "Could not send elevation map to client");
+    // invio dell'elevation map finché non viene inviato correttamente al client per evitare la segmentation fault di quest'ultimo
+    int ack = 0;
+    char *elevation_reply = (char *)malloc(sizeof(int)+1);
+    while (!ack) {
 
-    if (DEBUG) printf("[ELEVATION_MAP] Byte inviati: %d\n", ret);
+        ret = send_TCP(socket, elevation_map_buffer, elevation_map_len, 0);
+        if (ret == -2) {
+            printf("Could not send elevation map\n");
+            client[idx].status = 0;
+            ret = close(socket);
+            if (errno != EBADF) ERROR_HELPER(ret, "Could not close socket");
+            pthread_exit(NULL);
+        }
+        else PTHREAD_ERROR_HELPER(ret, "Could not send elevation map to client");
+
+        if (DEBUG) printf("[ELEVATION_MAP] Byte inviati: %d\n", ret);
+
+        if (DEBUG) printf("[ELEVATION_MAP] Mi metto in attesa dell'ack del client\n");
+
+        ret = recv_TCP(socket, elevation_reply, sizeof(int)+1, 0);
+        if (ret == -2) {
+            printf("Could not send elevation map\n");
+            client[idx].status = 0;
+            ret = close(socket);
+            if (errno != EBADF) ERROR_HELPER(ret, "Could not close socket");
+            pthread_exit(NULL);
+        }
+        else PTHREAD_ERROR_HELPER(ret, "Could not send elevation map to client");
+
+        ack = atoi(elevation_reply);
+
+        if (DEBUG) printf("[ELEVATION_MAP] Ricevuto dal client ack = %d\n", ack);
+
+    }
 
     if (DEBUG) printf("[ELEVATION_MAP] Invio del pacchetto avvenuto con successo\n");
 
     free(elevation_map_buffer);
+    free(elevation_reply);
 
     //ricezione richiesta mappa e invio mappa
 
@@ -677,15 +701,18 @@ void* thread_server_TCP(void* args){
 
     bytes_read = 0;
 
-    ret = recv_TCP_packet(socket, map_buffer, 0, &bytes_read);
-    if (ret == -2) {
-        printf("Could not receive map request\n");
-        client[idx].status = 0;
-        ret = close(socket);
-        if (errno != EBADF) ERROR_HELPER(ret, "Could not close socket");
-        pthread_exit(NULL);
+    while(bytes_read < 12) {
+        ret = recv_TCP(socket, map_buffer, sizeof(IdPacket), 0);
+        if (ret == -2) {
+            printf("Could not receive map request\n");
+            client[idx].status = 0;
+            ret = close(socket);
+            if (errno != EBADF) ERROR_HELPER(ret, "Could not close socket");
+            pthread_exit(NULL);
+        }
+        else PTHREAD_ERROR_HELPER(ret, "Could not receive map request");
+        bytes_read += ret;
     }
-    else PTHREAD_ERROR_HELPER(ret, "Could not receive map request");
 
     if (DEBUG) printf("[MAP] Byte letti: %d\n", bytes_read);
 
@@ -721,27 +748,50 @@ void* thread_server_TCP(void* args){
 
     mappa_len = Packet_serialize(mappa, &(map_packet->header));
 
-    if (DEBUG) printf("[MAP] Serializzazione completata. Sto per inviare: %d byte\n", (int) mappa_len);
+    if (DEBUG) printf("[MAP] Serializzazione completata.");
 
-    if (DEBUG) printf("[MAP] Invio del pacchetto in corso!\n");
+    ack = 0;
+    char *map_reply = (char *)malloc(21);
+    while (!ack) {
+        
+        if (DEBUG) printf("[MAP] Sto per inviare: %d byte\n", (int) mappa_len);
 
-    ret = send_TCP(socket, mappa, mappa_len, 0);
-    if (ret == -2){
-        printf("Could not send map to client\n");
-        client[idx].status = 0;
-        ret = close(socket);
-        if (errno != EBADF) ERROR_HELPER(ret, "Could not close socket");
-        pthread_exit(NULL);
+        if (DEBUG) printf("[MAP] Invio del pacchetto in corso!\n");
+
+        ret = send_TCP(socket, mappa, mappa_len, 0);
+        if (ret == -2){
+            printf("Could not send map to client\n");
+            client[idx].status = 0;
+            ret = close(socket);
+            if (errno != EBADF) ERROR_HELPER(ret, "Could not close socket");
+            pthread_exit(NULL);
+        }
+        else PTHREAD_ERROR_HELPER(ret, "Could not send map to client\n");
+
+        if (DEBUG) printf("[MAP] Byte inviati: %d\n"
+                          "[MAP] Invio del pacchetto avvenuto con successo!\n"
+                          "[MAP] Mi preparo a ricevere ack dal client\n", ret);
+
+        ret = recv_TCP(socket, map_reply, sizeof(int)+1, 0);
+        if (ret == -2) {
+            printf("Could not receive map_reply from client\n");
+            client[idx].status = 0;
+            ret = close(socket);
+            if (errno != EBADF) ERROR_HELPER(ret, "Could not close socket");
+            pthread_exit(NULL);
+        }
+        else PTHREAD_ERROR_HELPER(ret, "Could not receive map_reply from client");
+
+        ack = atoi(map_reply);
+
+        if (DEBUG) printf("[MAP] Ricevuto dal client ack = %d\n", ack);
+
     }
-    else PTHREAD_ERROR_HELPER(ret, "Could not send map to client\n");
-
-    if (DEBUG) printf("[MAP] Byte inviati: %d\n", ret);
-
-    if (DEBUG) printf("[MAP] Invio del pacchetto avvenuto con successo!\n");
 
     if (DEBUG) printf("[SERVER] Client con id %d si è connesso (status = %d)\n", client[idx].id, client[idx].status);
 
     free(mappa);
+    free(map_reply);
 
     /** Ultimata la connessione e l'inizializzazione del client, c'è bisogno di inviargli lo stato di tutti gli altri client già connessi **/
 
@@ -856,6 +906,8 @@ void* thread_server_TCP(void* args){
             ERROR_HELPER(ret, "Could not wait sem_world");
             // Salvo l'ultima posizione del veicolo e lo elimino dal mondo
             v_p = World_getVehicle(&world, client[idx].id);
+            if (DEBUG) printf("[TEST PACKET] Il veicolo con id %d si è disconnesso, le sue ultime coordinate sono "
+                              "(x,y,theta) = (%f,%f,%f)\n", v_p->id, v_p->x, v_p->y, v_p->theta);
             client[i].x = v_p->x; 
             client[i].y = v_p->y; 
             client[i].theta = v_p->theta;
@@ -938,8 +990,9 @@ void* thread_server_UDP_sender(void* args){
 			if(client[i].status==1){
 				Vehicle* v = World_getVehicle(&world,client[i].id);
 
-                if (DEBUG) printf("[UDP SENDER] Veicolo con id %d estrapolato dal mondo\n", client[i].id);
                 if(v!=0){
+                    if (DEBUG) printf("[UDP SENDER] Veicolo con id %d estrapolato dal mondo, le sue coordinate sono "
+                        "(x,y,theta) = (%f,%f,%f)\n", v->id, v->x, v->y, v->theta);
 				    update[i].id=client[i].id;
 				    update[i].x=v->x;
 				    update[i].y=v->y;
@@ -979,6 +1032,8 @@ void* thread_server_UDP_sender(void* args){
                     printf("Could not send user data to client %d\n", i);
                     client[i].status = 0;
                     Vehicle *vec = World_getVehicle(&world, client[i].id);
+                    if (DEBUG) printf("[UDP SENDER] Il veicolo con id %d si è disconnesso, le sue ultime coordinate sono "
+                        "(x,y,theta) = (%f,%f,%f)\n", vec->id, vec->x, vec->y, vec->theta);
                     client[i].x = vec->x;
                     client[i].y = vec->y;
                     client[i].theta = vec->theta;
