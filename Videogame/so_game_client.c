@@ -126,6 +126,7 @@ void* thread_listener_tcp(void* client_args){
 
     //Ricezione degli ImagePacket contenenti id e texture di tutti i client presenti nel mondo
     char* user = (char*)malloc(DIM_BUFF*sizeof(char));
+    Vehicle *v;
     int msg_len;
 
     int bytes_read = 0;
@@ -162,13 +163,15 @@ void* thread_listener_tcp(void* client_args){
             ret = sem_wait(&sem_world_c);
             PTHREAD_ERROR_HELPER(ret, "Failed to wait sem_world_c  adding vehicle \n");
 
-			Vehicle* v = (Vehicle*) malloc(sizeof(Vehicle));
+			v = (Vehicle*) malloc(sizeof(Vehicle));
 			Vehicle_init(v, &world, id, client->image);
             World_addVehicle(&world, v);
 
             ret = sem_post(&sem_world_c);
             PTHREAD_ERROR_HELPER(ret, "Failed to post sem_world_c  adding vehicle \n");
 
+            client->image = NULL;       // altrimenti la packet_free elimina la texture vera e propria
+            Packet_free((PacketHeader *) client);
 		}
 		else if(clienth->type==GetId){
 			IdPacket* clientd=(IdPacket*)clienth;
@@ -179,17 +182,22 @@ void* thread_listener_tcp(void* client_args){
                 ret = sem_wait(&sem_world_c);
                 PTHREAD_ERROR_HELPER(ret, "Failed to wait sem_world_c  removing vehicle \n");
 
-				World_detachVehicle(&world, World_getVehicle(&world, id));
+                v = World_getVehicle(&world, id);
+				World_detachVehicle(&world, v);
 
                 ret = sem_post(&sem_world_c);
                 PTHREAD_ERROR_HELPER(ret, "Failed to post sem_world_c  removing vehicle \n");
+
+                free(v);
 			}
+            Packet_free((PacketHeader *) clientd);
 		}
 
         if (DEBUG) printf("[TCP] Eliminati i client disconnessi dal mondo\n");
     }
 
     free(user);
+    free(arg);
     pthread_exit(NULL);
 
 }
@@ -260,8 +268,9 @@ void* thread_listener_udp_M(void* client_args){
 
     }
 
-    free(update);
+    Packet_free((PacketHeader *) update);
     free(vehicle_update);
+    free(arg);
     pthread_exit(NULL);
 
     /**uscire dal while, significa che il client si sta disconnettendo. Il server deve salvare il suo stato da qualche parte, per ripristinarlo più avanti
@@ -373,13 +382,14 @@ void* thread_listener_udp_W(void* client_args){
                 ERROR_HELPER(ret, "Failed to post sem_world_c in thread_UDP_receiver");
 
                 if (DEBUG) printf("[UDP RECEIVER] Data update!\n");
-
+                Packet_free((PacketHeader *) wup);           // dealloco sia la lista degli update che la struttura
             }
         }
 
     }
 
     free(world_update);
+    free(arg);
     pthread_exit(NULL);
     /**uscire dal while, significa che il client si sta disconnettendo. Il server deve salvare il suo stato da qualche parte, per ripristinarlo più avanti
        se il client si connetterà ancora**/
@@ -468,7 +478,6 @@ int main(int argc, char **argv) {
 	/** Client inserisce username e password appena si connette:
 	*   -se utente non esiste allora i dati che ha inserito vengono usati per registrare l'utente
 	*	-variabile login_state ha 3 valori 0 se nuovo utente registrato, 1 se già esistente e -1 se password sbagliata
-	* [TOCOMPLETE]
 	**/
 
   	char stato_login[DIM_BUFF];		// in this variabile there is the login's state
@@ -594,6 +603,7 @@ int main(int argc, char **argv) {
 		if (DEBUG) printf("[IDPACKET] idPacket richiesto\n");
 
         free(idPacket_request);
+        Packet_free((PacketHeader *) request_id);
 
 		ret = recv_TCP_packet(socket_desc, idPacket, 0, &bytes_read);
 		ERROR_HELPER(ret, "Could not read id from socket");
@@ -656,6 +666,8 @@ int main(int argc, char **argv) {
         }
 
         free(texture_for_server);
+        my_texture->image = NULL;
+        Packet_free((PacketHeader *) my_texture);
 
 		// receving my texture from server
 
@@ -688,6 +700,9 @@ int main(int argc, char **argv) {
 		// these come from the server
 		my_id = id->id;
 		my_texture_from_server = my_texture_received->image;
+        
+        my_texture_received->image = NULL;
+        Packet_free((PacketHeader *) my_texture_received);
 
         if (DEBUG) printf("[CLIENT] Parametri aggiornati\n"); 
     }
@@ -715,6 +730,7 @@ int main(int argc, char **argv) {
         if (DEBUG) printf("[CLIENT] Richiesta inviata\n");
 
         free(request_texture_for_server);
+        Packet_free((PacketHeader *) request_texture);
 
         if (DEBUG) printf("[CLIENT] Ricevo la texture dal server\n");
 
@@ -733,6 +749,9 @@ int main(int argc, char **argv) {
 		// these come from the server
 		my_id = my_texture_received->id;
 		my_texture_from_server = my_texture_received->image;
+
+        my_texture_received->image = NULL;
+        Packet_free((PacketHeader *) my_texture_received);
 
         if (DEBUG) printf("[CLIENT] Ricevo le vecchie coordinate dal server\n");
 
@@ -787,6 +806,7 @@ int main(int argc, char **argv) {
     if (DEBUG) printf("[ELEVATION_MAP] Pacchetto di richiesta inviato\n");
 
     free(request_elevation_for_server);
+    Packet_free((PacketHeader *) request_elevation);
 
     if (DEBUG) printf("[ELEVATION_MAP] Attendo il pacchetto di elevation_map dal server\n");
 
@@ -859,6 +879,7 @@ int main(int argc, char **argv) {
     if (DEBUG) printf("[MAP] Invio del pacchetto avvenuto con successo!\n");
 
     free(request_texture_map_for_server);
+    Packet_free((PacketHeader *) request_map);
 
     if (DEBUG) printf("[MAP] Attendo la mappa dal server\n");
 
@@ -873,6 +894,7 @@ int main(int argc, char **argv) {
             if (ret == -1 && (errno == ENOTCONN || errno == EPIPE)) break;
         }
       	ERROR_HELPER(ret, "Could not read map texture from socket");
+
         msg_len = ret;
 
         if (DEBUG) printf("[MAP] Byte letti: %ld\n", msg_len);
@@ -906,6 +928,11 @@ int main(int argc, char **argv) {
 
 	Image* map_elevation = elevation->image;
 	Image* map_texture = map->image;
+
+    elevation->image = NULL;
+    map->image = NULL;
+    Packet_free((PacketHeader *) elevation);
+    Packet_free((PacketHeader *) map);
 
     if (DEBUG) printf("[CLIENT] Parametri aggiornati. Costruzione del mondo\n");
 
