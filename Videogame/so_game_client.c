@@ -810,46 +810,22 @@ int main(int argc, char **argv) {
 
     if (DEBUG) printf("[ELEVATION_MAP] Attendo il pacchetto di elevation_map dal server\n");
 
-    int ack = 0;
-    char *elevation_reply = (char *)malloc(21);
-    ImagePacket* elevation;
-    PacketHeader* p_debug;
-    while(!ack) {
 
-        while((ret = recv(socket_desc, elevation_map, DIM_BUFF, 0)) <= 0) {
-            if (ret == -1 && errno == EINTR) continue;
-            if (ret == -1 && (errno == ENOTCONN || errno == EPIPE)) break;
-        }
-        ERROR_HELPER(ret, "Could not read elevation map from socket");
-        
-        msg_len=ret;
 
-        if (DEBUG) printf("[ELEVATION_MAP] Byte letti: %d\n", ret);
-        p_debug = (PacketHeader *) elevation_map;
-        if (DEBUG) printf("[ELEVATION_MAP] Campo size dell'header ancora non deserializzato = %d\n", p_debug->size);
+    bytes_read=0;
 
-        if (p_debug->size < 0 || p_debug->size != msg_len) ack = 0;
-        else {
-            ack = 1;
-            if (DEBUG) printf("[ELEVATION_MAP] Pacchetto ricevuto, deserializzo\n");
+    ret = recv_TCP_packet(socket_desc, elevation_map,0,&bytes_read);
+    ERROR_HELPER(ret, "Could not read elevation map from socket");
+    
+    msg_len=bytes_read;
 
-            elevation = (ImagePacket*) Packet_deserialize(elevation_map,msg_len);
-            if(elevation->header.type!=PostElevation && elevation->id!=0) ack = 0;
-
-            if (DEBUG) printf("[ELEVATION_MAP] Pacchetto deserializzato\n");
-        }
-        if (DEBUG) printf("[ELEVATION_MAP] Preparo ack e lo invio\n");
-
-        sprintf(elevation_reply, "%d", ack);
-        ret = send_TCP(socket_desc, elevation_reply, sizeof(elevation_reply)+1, 0);
-        ERROR_HELPER(ret, "Could not send elevation ack to server");
-
-        if (DEBUG) printf("[ELEVATION_MAP] Inviato al server ack = %d\n", ack);
-        
-    } 
+    if (DEBUG) printf("[ELEVATION_MAP] Byte letti: %d\n", (int)msg_len);
+    ImagePacket* elevation=(ImagePacket*)Packet_deserialize(elevation_map,msg_len);
+    if (DEBUG) printf("[ELEVATION_MAP] Pacchetto deserializzato \n");
+ 
 
     free(elevation_map);
-    free(elevation_reply);
+
 
 	//requesting and receving map
 
@@ -883,45 +859,25 @@ int main(int argc, char **argv) {
 
     if (DEBUG) printf("[MAP] Attendo la mappa dal server\n");
 
-    ack = 0;
-    char *map_reply = (char *)malloc(21);
+
     char *texture_map = (char *)malloc(DIM_BUFF*sizeof(char));                    //buffer per la ricezione della mappa
-    ImagePacket* map;
-    while (!ack) {
 
-      	while ((ret = recv(socket_desc, texture_map, DIM_BUFF, 0)) <= 0){
-            if (ret == -1 && errno == EINTR) continue;
-            if (ret == -1 && (errno == ENOTCONN || errno == EPIPE)) break;
-        }
-      	ERROR_HELPER(ret, "Could not read map texture from socket");
+    bytes_read=0;
 
-        msg_len = ret;
+  	ret = recv_TCP_packet(socket_desc, texture_map,0,&bytes_read);
 
-        if (DEBUG) printf("[MAP] Byte letti: %ld\n", msg_len);
+  	ERROR_HELPER(ret, "Could not read map texture from socket");
 
-        p_debug = (PacketHeader *)texture_map;
-        if (p_debug->size < 0 || p_debug->size != msg_len) ack = 0;
-        else {
-            ack = 1;
-            if (DEBUG) printf("[MAP] Pacchetto ricevuto, deserializzo.\n");
+    msg_len = bytes_read;
 
-        	map = (ImagePacket*) Packet_deserialize(texture_map,msg_len);
-        	if(map->header.type!=PostTexture && map->id!=0) ERROR_HELPER(-1,"error in protocol \n");
+    if (DEBUG) printf("[MAP] Byte letti: %ld\n", msg_len);
 
-            if (DEBUG) printf("[MAP] Deserializzazione completata!\n");
-        }
+    ImagePacket* map =(ImagePacket*)Packet_deserialize(texture_map,msg_len);
+    if (DEBUG) printf("[MAP] Paccheto deserializzato \n");
 
-        sprintf(map_reply, "%d", ack);
-        ret = send_TCP(socket_desc, map_reply, sizeof(map_reply)+1, 0);
-        ERROR_HELPER(ret, "Could not send map ack to server");
-
-        if (DEBUG) printf("[MAP] Inviato al server ack = %d\n", ack);
-
-    }
 
     free(texture_map);
-    free(map_reply);
-
+ 
 	// these come from the server
 
     if (DEBUG) printf("[CLIENT] Aggiorno i parametri\n");

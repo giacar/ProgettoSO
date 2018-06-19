@@ -13,7 +13,7 @@
 int recv_TCP_packet(int socket, char* buf, int flags, int* bytes_read) {
 	int ret, packet_len, bytes_letti = 0;
 
-	do {
+	/*do {
 		ret = recv(socket, buf, sizeof(PacketHeader), flags);
 		if (ret == -1 && (errno == ENOTCONN || errno == EPIPE)) {
 			printf("Connection closed. ");
@@ -40,6 +40,18 @@ int recv_TCP_packet(int socket, char* buf, int flags, int* bytes_read) {
 		}
 	} while (ret == -1 && errno == EINTR);
 
+	bytes_letti += ret;*/
+
+	while((ret=recv(socket,buf,DIM_BUFF,flags))<0){
+		if(ret==-1 && errno == EINTR) continue;
+
+		if(ret==-1 && (errno==ENOTCONN || errno==EPIPE)){
+			printf("Connection closed \n");
+			return -2;
+		}
+
+
+	}
 	bytes_letti += ret;
 
 	if (DEBUG) {
