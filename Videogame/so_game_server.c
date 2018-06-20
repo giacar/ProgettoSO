@@ -534,8 +534,8 @@ void* thread_server_TCP(void* args){
         if (verbosity_level>=DebugTCP) printf("[SERVER] Inizializzo il pacchetto client_texture da inviare al client\n");
 
         ImagePacket* client_texture = (ImagePacket*) malloc(sizeof(ImagePacket));
-        PacketHeader client_header;
-        client_texture->header = client_header;
+        //PacketHeader client_header;
+        //client_texture->header = client_header;
         client_texture->id = idx;
         client_texture->image = client[idx].texture;
         client_texture->header.type = PostTexture;
@@ -641,8 +641,8 @@ void* thread_server_TCP(void* args){
     if (verbosity_level>=DebugTCP) printf("[ELEVATION_MAP] Creo il pacchetto di elevation_map\n");
 
     ImagePacket* ele_map = (ImagePacket*) malloc(sizeof(ImagePacket));
-    PacketHeader elevation_header;
-    ele_map->header = elevation_header;
+    //PacketHeader elevation_header;
+    //ele_map->header = elevation_header;
     ele_map->image = elevation_map;
     ele_map->id = id;
     ele_map->header.type = PostElevation;
@@ -720,8 +720,8 @@ void* thread_server_TCP(void* args){
     size_t mappa_len;
 
     ImagePacket* map_packet = (ImagePacket*) malloc(sizeof(ImagePacket));
-    PacketHeader map_header;
-    map_packet->header = map_header;
+    //PacketHeader map_header;
+    //map_packet->header = map_header;
     map_packet->id = id;
     map_packet->image = map;
     map_packet->header.type = PostTexture;
@@ -761,8 +761,8 @@ void* thread_server_TCP(void* args){
     /** Ultimata la connessione e l'inizializzazione del client, c'è bisogno di inviargli lo stato di tutti gli altri client già connessi **/
 
     ImagePacket* client_alive = (ImagePacket*) malloc(sizeof(ImagePacket));
-    PacketHeader client_alive_header;
-    client_alive->header = client_alive_header;
+    //PacketHeader client_alive_header;
+    //client_alive->header = client_alive_header;
     client_alive->header.type=PostTexture;
 
     char *client_alive_buf = (char *)malloc(DIM_BUFF*sizeof(char));
@@ -814,9 +814,9 @@ void* thread_server_TCP(void* args){
 
     //inviamo a tutti i client attualmente connessi la texture del nuovo client appena arrivato
     ImagePacket* texture=(ImagePacket*)malloc(sizeof(ImagePacket));
-	PacketHeader head;
-	head.type=PostTexture;
-	texture->header=head;
+	//PacketHeader head;
+	//head.type=PostTexture;
+	texture->header.type=PostTexture;
 	texture->id=idx;
 	texture->image=client[idx].texture;
 	char *texture_buffer = (char *)malloc(DIM_BUFF*sizeof(char));
@@ -858,9 +858,9 @@ void* thread_server_TCP(void* args){
 	size_t test_len;
 
 	IdPacket* test=(IdPacket*)malloc(sizeof(IdPacket));
-	PacketHeader testh;
-	testh.type=GetId;
-	test->header=testh;
+	//PacketHeader testh;
+	//testh.type=GetId;
+	test->header.type=GetId;
 	test->id=90;
 
 	test_len=Packet_serialize(test_buf,&(test->header));
@@ -973,8 +973,8 @@ void* thread_server_UDP_sender(void* args){
         if (verbosity_level>=DebugUDP) printf("[UDP SENDER] Aggiornate posizioni dei client nel mondo. Creo il pacchetto WorldUpdatePacket\n");
 
 		WorldUpdatePacket* worldup=(WorldUpdatePacket*)malloc(sizeof(WorldUpdatePacket));
-        PacketHeader head;
-        worldup->header = head;
+        //PacketHeader head;
+        //worldup->header = head;
 		worldup->header.type=WorldUpdate;
 		worldup->num_vehicles=num_connected;
 		worldup->updates=update;

@@ -13,35 +13,41 @@
 int recv_TCP_packet(int socket, char* buf, int flags, int* bytes_read) {
 	int ret, packet_len, bytes_letti = 0;
 
-	/*do {
-		ret = recv(socket, buf, sizeof(PacketHeader), flags);
+	while (bytes_letti < sizeof(PacketHeader)) {
+		ret = recv(socket, buf, sizeof(PacketHeader)-bytes_letti, flags);
+		
+		if (ret == -1 && errno == EINTR) continue;
+		
 		if (ret == -1 && (errno == ENOTCONN || errno == EPIPE)) {
 			printf("Connection closed. ");
 			return -2;
 		}
-	} while (ret == -1 && errno == EINTR);
 
-	bytes_letti += ret;
+		bytes_letti += ret;
+	}
 
-	if (DEBUG) printf("[RECV_TCP_PACKET] Byte letti (header) = %d\n", bytes_letti);
+	if (verbosity_level>=DebugTCP) printf("[RECV_TCP_PACKET] Byte letti (header) = %d\n", bytes_letti);
 
 	PacketHeader *head = (PacketHeader*)buf;
 	packet_len = head->size;
 
-	if (DEBUG) printf("[RECV_TCP_PACKET] Header size = %d\n",packet_len);
+	if (verbosity_level>=DebugTCP) printf("[RECV_TCP_PACKET] Header size = %d\n",packet_len);
 
-	if (DEBUG) printf("[RECV_TCP_PACKET] Devo ricevere ancora %d byte\n", packet_len-bytes_letti);
+	if (verbosity_level>=DebugTCP) printf("[RECV_TCP_PACKET] Devo ricevere ancora %d byte\n", packet_len-bytes_letti);
 
-	do {
+	while (bytes_letti < packet_len) {
 		ret = recv(socket, buf+bytes_letti, packet_len-bytes_letti, flags);
+		
+		if (ret == -1 && errno == EINTR) continue;
+
 		if (ret == -1 && (errno == ENOTCONN || errno == EPIPE)) {
 			printf("Connection closed. ");
 			return -2;
 		}
-	} while (ret == -1 && errno == EINTR);
 
-	bytes_letti += ret;*/
-
+		bytes_letti += ret;
+	}
+/*
 	while((ret=recv(socket,buf,DIM_BUFF,flags))<0){
 		if(ret==-1 && errno == EINTR) continue;
 
@@ -54,11 +60,11 @@ int recv_TCP_packet(int socket, char* buf, int flags, int* bytes_read) {
 	}
 	bytes_letti += ret;
 
-	if (DEBUG) {
+	if (verbosity_level>=DebugTCP) {
 		PacketHeader* p = (PacketHeader *) buf; 
 		printf("[RECV_TCP_PACKET] Packet size = %d <=> Byte letti = %d\n", p->size, bytes_letti);
 	}
-
+*/
     *bytes_read = bytes_letti;
 
 	return ret;
@@ -71,20 +77,24 @@ int recv_TCP(int socket, char *buf, size_t len, int flags) {
 
 	if (len > 1) {
 
-		do {
+		while (bytes_read < len) {
+			ret = recv(socket, buf+bytes_read, len-bytes_read, flags);
 
-			ret = recv(socket, buf, len, flags);
+			if (ret == -1 && errno == EINTR) continue;
 
-		} while (ret == -1 && errno == EINTR);
+			if (ret == -1 && (errno == ENOTCONN || errno == EPIPE)) {
+				printf("Connection closed. ");
+				return -2;
+			}
 
-		if (ret == -1 && errno == ENOTCONN) {
-			printf("Connection closed. ");
-			return -2;
+			else if (ret == 0) {
+				printf("Connection error. ");
+				return -2;
+			}
+
+			bytes_read += ret;
 		}
-		else if (ret == 0) {
-			printf("Connection error. ");
-			return -2;
-		}
+		ret = bytes_read;
 
 	}
 
@@ -95,10 +105,10 @@ int recv_TCP(int socket, char *buf, size_t len, int flags) {
 		while (!finito) {
 			ret = recv(socket, buf+bytes_read, 1, flags);
 
-			if (DEBUG) printf("[RECV_TCP] Ho ricevuto byte: %d\n", (int)buf[bytes_read]);
+			if (verbosity_level>=DebugTCP) printf("[RECV_TCP] Ho ricevuto byte: %d\n", (int)buf[bytes_read]);
 
-			if (errno == EINTR) continue;
-			if (errno == ENOTCONN) {
+			if (ret == -1 && errno == EINTR) continue;
+			if (ret == -1 && (errno == ENOTCONN || errno == EPIPE)) {
 				printf("Connection closed. ");
 				return -2;
 			}
@@ -108,7 +118,7 @@ int recv_TCP(int socket, char *buf, size_t len, int flags) {
 			}
 
 			if (buf[bytes_read] == '\n' || buf[bytes_read] == '\0') {
-				if (DEBUG) printf("[RECV_TCP] Fine stringa\n");
+				if (verbosity_level>=DebugTCP) printf("[RECV_TCP] Fine stringa\n");
 				finito = 1;
 			}
 
@@ -184,7 +194,7 @@ int recv_UDP_packet(int socket, char *buf, int flags, struct sockaddr *src_addr,
 
 	bytes_letti += ret;
 
-	if (DEBUG) {
+	if (verbosity_level>=DebugUDP) {
 		PacketHeader* p = (PacketHeader *) buf; 
 		printf("[RECV_UDP_PACKET] Packet size = %d <=> Byte letti = %d\n", p->size, bytes_letti);
 	}

@@ -372,7 +372,7 @@ void* thread_listener_udp_W(void* client_args){
 
                 v = World_getVehicle(&world, id);
                 if(v!=0 /*&& my_id != id*/){
-                    printf("[UDP RECEIVER] Posizioni veicolo %d ricevute \n", id);
+                    if (verbosity_level>=DebugUDP) printf("[UDP RECEIVER] Posizioni veicolo %d ricevute \n", id);
                     v->x = x;
                     v->y = y;
                     v->theta = theta;
@@ -570,8 +570,8 @@ int main(int argc, char **argv) {
 
 		//requesting and receving the ID
 		IdPacket* request_id=(IdPacket*)malloc(sizeof(IdPacket));
-		PacketHeader id_head;
-		request_id->header=id_head;
+		//PacketHeader id_head;
+		//request_id->header=id_head;
 		request_id->header.type=GetId;
 		request_id->id = -1;
 
@@ -631,8 +631,8 @@ int main(int argc, char **argv) {
         if (verbosity_level>=DebugTCP) printf("[TEXTURE] Alloco la mia texture\n");
 
         ImagePacket* my_texture = (ImagePacket*) malloc(sizeof(ImagePacket));
-		PacketHeader img_head;
-		my_texture->header=img_head;
+		//PacketHeader img_head;
+		//my_texture->header=img_head;
 		my_texture->header.type=PostTexture;
 		my_texture->id=id->id;
 		my_texture->image=my_texture_for_server;
@@ -711,8 +711,8 @@ int main(int argc, char **argv) {
    		printf("Login success, welcome back %s\n", username);
 		//requesting and receving texture and id
 		IdPacket* request_texture=(IdPacket*)malloc(sizeof(IdPacket));
-		PacketHeader request_texture_head;
-		request_texture->header=request_texture_head;
+		//PacketHeader request_texture_head;
+		//request_texture->header=request_texture_head;
 		request_texture->id=-1; //ancora non lo conosco lo scopro nella risposta
 		request_texture->header.type=GetTexture;
 
