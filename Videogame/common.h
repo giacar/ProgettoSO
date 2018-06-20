@@ -18,6 +18,9 @@
 #define FINISH_COMMAND     "Finish"
 #define MAX_USER_NUM	   20
 #define DIM_BUFF			1000000
-#define DEBUG				1
+#define DEBUG				0
+
+typedef enum {No=0, General=1, DebugTCP=2, DebugUDP=3, DebugAll=5} Verbosity;
+extern Verbosity verbosity_level;
 
 #endif

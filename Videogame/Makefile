@@ -14,6 +14,7 @@ OBJS = vec3.o\
        surface.o\
        image.o\
        vehicle.o\
+       common.o\
        world.o\
        world_viewer.o\
        utils.o\
