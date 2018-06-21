@@ -785,10 +785,11 @@ void* thread_server_TCP(void* args){
             ret = send_TCP(socket, client_alive_buf, alive_len, 0);
             if (ret == -2){
                 printf("Could not send user data to client\n");
-                client[idx].status = 0;
+                
 
                 ret = sem_wait(&sem_world);
                 ERROR_HELPER(ret, "Could not wait sem_world");
+                client[idx].status = 0;
                 // Salvo l'ultima posizione del veicolo e lo elimino dal mondo
                 v_p = World_getVehicle(&world, client[i].id);
                 client[i].x = v_p->x; 
@@ -828,10 +829,11 @@ void* thread_server_TCP(void* args){
 			ret = send_TCP(client[i].socket_TCP, texture_buffer, texture_len, 0);
             if (ret == -2){
                 printf("Could not send user data to client\n");
-                client[i].status = 0;
+                
 
                 ret = sem_wait(&sem_world);
                 ERROR_HELPER(ret, "Could not wait sem_world");
+                client[i].status = 0;
                 // Salvo l'ultima posizione del veicolo e lo elimino dal mondo
                 v_p = World_getVehicle(&world, client[i].id);
                 client[i].x = v_p->x; 
@@ -866,19 +868,21 @@ void* thread_server_TCP(void* args){
 	test_len=Packet_serialize(test_buf,&(test->header));
     if (verbosity_level>=DebugTCP) printf("[TEST PACKET] Serializzato pacchetto di test\n");
 	while(1){
+        test->id=90;
 		ret = send_TCP(socket, test_buf, test_len, 0);
 		if (ret == -2){
-            client[idx].status = 0;
+            
 
             ret = sem_wait(&sem_world);
             ERROR_HELPER(ret, "Could not wait sem_world");
+            client[idx].status = 0;
             // Salvo l'ultima posizione del veicolo e lo elimino dal mondo
             v_p = World_getVehicle(&world, client[idx].id);
             if (verbosity_level>=DebugTCP) printf("[TEST PACKET] Il veicolo con id %d si è disconnesso, le sue ultime coordinate sono "
                               "(x,y,theta) = (%f,%f,%f)\n", v_p->id, v_p->x, v_p->y, v_p->theta);
-            client[i].x = v_p->x; 
-            client[i].y = v_p->y; 
-            client[i].theta = v_p->theta;
+            client[idx].x = v_p->x; 
+            client[idx].y = v_p->y; 
+            client[idx].theta = v_p->theta;
             World_detachVehicle(&world, v_p);
             ret = sem_post(&sem_world);
             ERROR_HELPER(ret, "Could not post sem_world");
