@@ -139,7 +139,7 @@ void* thread_listener_tcp(void* client_args){
         ret = recv_TCP_packet(socket, user, 0, &bytes_read);
         if (ret == -2 || ret == 0){
         	printf("Could not receive users already in world\n");
-            alarm(1);
+            ualarm(1,0);
             printf("\nServer closed, goodbye!\n");
             exit(0);
         }
@@ -380,10 +380,10 @@ void* thread_listener_udp_W(void* client_args){
 
                 ret = sem_post(&sem_world_c);
                 ERROR_HELPER(ret, "Failed to post sem_world_c in thread_UDP_receiver");
-
-                if (verbosity_level>=DebugUDP) printf("[UDP RECEIVER] Data update!\n");
-                Packet_free((PacketHeader *) wup);           // dealloco sia la lista degli update che la struttura
             }
+            
+            if (verbosity_level>=DebugUDP) printf("[UDP RECEIVER] Data update!\n");
+            Packet_free((PacketHeader *) wup);           // dealloco sia la lista degli update che la struttura
         }
 
     }
