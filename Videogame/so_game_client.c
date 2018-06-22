@@ -65,6 +65,7 @@ void handle_signal(int sig){
             free(vehicle);
 
             if (verbosity_level>=General) printf("Mondo e veicolo distrutti\n");
+            exit(1);
             break;
 
         case SIGSEGV:
@@ -85,6 +86,7 @@ void handle_signal(int sig){
             free(vehicle);
 
             if (verbosity_level>=General) printf("Mondo e veicolo distrutti\n");
+            exit(1);
             break;
 
         case SIGPIPE:
@@ -163,9 +165,13 @@ void* thread_listener_tcp(void* client_args){
             ret = sem_wait(&sem_world_c);
             PTHREAD_ERROR_HELPER(ret, "Failed to wait sem_world_c  adding vehicle \n");
 
+
+
 			v = (Vehicle*) malloc(sizeof(Vehicle));
 			Vehicle_init(v, &world, id, client->image);
             World_addVehicle(&world, v);
+
+            if (verbosity_level>=DebugTCP) printf("[TCP] Aggiunto veicolo %d\n",id);
 
             ret = sem_post(&sem_world_c);
             PTHREAD_ERROR_HELPER(ret, "Failed to post sem_world_c  adding vehicle \n");
@@ -184,6 +190,8 @@ void* thread_listener_tcp(void* client_args){
 
                 v = World_getVehicle(&world, id);
 				World_detachVehicle(&world, v);
+
+                if (verbosity_level>=DebugTCP) printf("[TCP] Rimosso  veicolo %d\n",id);
 
                 ret = sem_post(&sem_world_c);
                 PTHREAD_ERROR_HELPER(ret, "Failed to post sem_world_c  removing vehicle \n");

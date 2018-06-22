@@ -22,6 +22,10 @@ int recv_TCP_packet(int socket, char* buf, int flags, int* bytes_read) {
 			printf("Connection closed. ");
 			return -2;
 		}
+		if (ret == 0) {
+			printf("Connection closed. ");
+			return 0;
+		}
 
 		bytes_letti += ret;
 	}
@@ -43,6 +47,11 @@ int recv_TCP_packet(int socket, char* buf, int flags, int* bytes_read) {
 		if (ret == -1 && (errno == ENOTCONN || errno == EPIPE)) {
 			printf("Connection closed. ");
 			return -2;
+		}
+
+		if (ret == 0) {
+		printf("Connection closed. ");
+		return 0;
 		}
 
 		bytes_letti += ret;

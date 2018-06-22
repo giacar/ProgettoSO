@@ -47,6 +47,7 @@ offline_client, e poi si mette a NULL la sua cella in online_client.
 
 void handle_signal(int sig){
     int ret;
+    int i;
     printf("Signal caught: %d\n", sig);
 
     switch(sig){
@@ -60,6 +61,18 @@ void handle_signal(int sig){
             communication = 0;
             main_var = 0;
 
+            
+            for(i=0;i<MAX_USER_NUM;i++){
+                if(client[i].status==1){
+                    ret=shutdown(client[i].socket_TCP,SHUT_RDWR);
+                    ERROR_HELPER(ret,"Error shutdown socket socket \n");
+                    ret=close(client[i].socket_TCP);
+                    ERROR_HELPER(ret,"Error closing socket \n");
+                    if(verbosity_level>=General)printf("chiusa socket TCP client %d \n",i);
+
+                }
+            }
+
             ret = close(server_socket_TCP);
             ERROR_HELPER(ret, "Error in closing socket desc TCP");
 
@@ -77,6 +90,8 @@ void handle_signal(int sig){
             World_destroy(&world);
 
             if (verbosity_level>=General) printf("Mondo distrutto\n");
+
+            exit(1);
 
             break;
 
@@ -86,6 +101,17 @@ void handle_signal(int sig){
             communication = 0;
             main_var = 0;
 
+            for(i=0;i<MAX_USER_NUM;i++){
+                if(client[i].status==1){
+                    ret=shutdown(client[i].socket_TCP,SHUT_RDWR);
+                    ERROR_HELPER(ret,"Error shutdown socket socket \n");
+                    ret=close(client[i].socket_TCP);
+                    ERROR_HELPER(ret,"Error closing socket \n");
+                    if(verbosity_level>=General)printf("chiusa socket TCP client %d \n",i);
+
+                }
+            }
+
             ret = close(server_socket_TCP);
             ERROR_HELPER(ret, "Error in closing socket desc TCP");
 
@@ -103,6 +129,8 @@ void handle_signal(int sig){
             World_destroy(&world);
 
             if (verbosity_level>=General) printf("Mondo distrutto\n");
+
+            exit(1);
 
             break;
 
@@ -907,6 +935,8 @@ void* thread_server_TCP(void* args){
 
     free(test_buf);
     Packet_free((PacketHeader *) test);
+    ret=close(socket);
+    PTHREAD_ERROR_HELPER(ret,"Error closing socket\n");
     free(arg);
     pthread_exit(NULL);
 
