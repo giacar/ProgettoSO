@@ -813,22 +813,24 @@ void* thread_server_TCP(void* args){
             ret = send_TCP(socket, client_alive_buf, alive_len, 0);
             if (ret == -2){
                 printf("Could not send user data to client\n");
-                
 
                 ret = sem_wait(&sem_world);
                 ERROR_HELPER(ret, "Could not wait sem_world");
                 client[idx].status = 0;
                 // Salvo l'ultima posizione del veicolo e lo elimino dal mondo
-                v_p = World_getVehicle(&world, client[i].id);
-                client[i].x = v_p->x; 
-                client[i].y = v_p->y; 
-                client[i].theta = v_p->theta;
+                v_p = World_getVehicle(&world, client[idx].id);
+                client[idx].x = v_p->x; 
+                client[idx].y = v_p->y; 
+                client[idx].theta = v_p->theta;
                 World_detachVehicle(&world, v_p);
                 ret = sem_post(&sem_world);
                 ERROR_HELPER(ret, "Could not post sem_world");
 
                 ret = close(socket);
                 if (errno != EBADF) ERROR_HELPER(ret, "Could not close socket");
+                free(client_alive_buf);
+                client_alive->image = NULL;
+                Packet_free((PacketHeader *) client_alive);
                 pthread_exit(NULL);
             }
             else PTHREAD_ERROR_HELPER(ret, "Could not send user data to client\n");
@@ -891,7 +893,7 @@ void* thread_server_TCP(void* args){
 	//PacketHeader testh;
 	//testh.type=GetId;
 	test->header.type=GetId;
-	test->id=90;
+	test->id=90;       // valore speciale (ovviamente più grande di MAX_USER_NUM)
 
 	test_len=Packet_serialize(test_buf,&(test->header));
     if (verbosity_level>=DebugTCP) printf("[TEST PACKET] Serializzato pacchetto di test\n");
@@ -907,7 +909,7 @@ void* thread_server_TCP(void* args){
             // Salvo l'ultima posizione del veicolo e lo elimino dal mondo
             v_p = World_getVehicle(&world, client[idx].id);
             if (verbosity_level>=DebugTCP) printf("[TEST PACKET] Il veicolo con id %d si è disconnesso, le sue ultime coordinate sono "
-                              "(x,y,theta) = (%f,%f,%f)\n", v_p->id, v_p->x, v_p->y, v_p->theta);
+                                                  "(x,y,theta) = (%f,%f,%f)\n", v_p->id, v_p->x, v_p->y, v_p->theta);
             client[idx].x = v_p->x; 
             client[idx].y = v_p->y; 
             client[idx].theta = v_p->theta;
@@ -919,7 +921,7 @@ void* thread_server_TCP(void* args){
 				if(client[i].status==1 && i!=idx){
 					test->id=idx;
 					test_len=Packet_serialize(test_buf,&(test->header));
-					ret = send_TCP(client[i].socket_TCP, test_buf, test_len, 0);
+					ret = send_TCP(client[i].socket_TCP, test_buf, test_len, 0);   // non mi interessa gestire errori e disconnessioni
 				}
 			}
             break;
@@ -961,7 +963,6 @@ void* thread_server_UDP_sender(void* args){
 
 
 	//ad intervalli regolari integrare il mondo,inviare le nuove posizioni di tutti i client a tutti i client
-    //DA FINIRE E CONTROLLARNE LA CORRETTEZZA
     while(communication) {
 
         struct sockaddr_in client_addr;
@@ -973,9 +974,8 @@ void* thread_server_UDP_sender(void* args){
 
         if (verbosity_level>=DebugUDP) printf("[UDP SENDER] Wait superata\n");
 
-        //DA FINIRE
         World_update(&world);
-        int i;
+        int i,j;
         int num_connected=0;
         for(i=0;i<MAX_USER_NUM;i++){
 			if(client[i].status==1){
@@ -988,19 +988,20 @@ void* thread_server_UDP_sender(void* args){
 		ClientUpdate* update=(ClientUpdate*)malloc(num_connected*sizeof(ClientUpdate));
 
         if (verbosity_level>=DebugUDP) printf("[UDP SENDER] Creato pacchetto di ClientUpdate di dimensione: %lu\n", num_connected*sizeof(ClientUpdate));
-        for(i=0;i<MAX_USER_NUM;i++){
+        for(i=0,j=0; i<MAX_USER_NUM && j<num_connected; i++){
 			if(client[i].status==1){
 				Vehicle* v = World_getVehicle(&world,client[i].id);
-
                 if(v!=0){
                     if (verbosity_level>=DebugUDP) printf("[UDP SENDER] Veicolo con id %d estrapolato dal mondo, le sue coordinate sono "
-                        "(x,y,theta) = (%f,%f,%f)\n", v->id, v->x, v->y, v->theta);
-				    update[i].id=client[i].id;
-				    update[i].x=v->x;
-				    update[i].y=v->y;
-				    update[i].theta=v->theta;
+                                                          "(x,y,theta) = (%f,%f,%f)\n", v->id, v->x, v->y, v->theta);
+				    update[j].id=client[i].id;
+				    update[j].x=v->x;
+				    update[j].y=v->y;
+				    update[j].theta=v->theta;
                     if (verbosity_level>=DebugUDP) printf("[UDP SENDER] Inizializzata cella %d dell'array update\n", i);
                 }
+
+                j++;
 			}
 		}
 
@@ -1035,12 +1036,14 @@ void* thread_server_UDP_sender(void* args){
                     printf("Could not send user data to client %d\n", i);
                     client[i].status = 0;
                     Vehicle *vec = World_getVehicle(&world, client[i].id);
-                    if (verbosity_level>=DebugUDP) printf("[UDP SENDER] Il veicolo con id %d si è disconnesso, le sue ultime coordinate sono "
-                        "(x,y,theta) = (%f,%f,%f)\n", vec->id, vec->x, vec->y, vec->theta);
-                    client[i].x = vec->x;
-                    client[i].y = vec->y;
-                    client[i].theta = vec->theta;
-                    World_detachVehicle(&world, vec);
+                    if (vec) {
+                        if (verbosity_level>=DebugUDP) printf("[UDP SENDER] Il veicolo con id %d si è disconnesso, le sue ultime coordinate sono "
+                                                              "(x,y,theta) = (%f,%f,%f)\n", vec->id, vec->x, vec->y, vec->theta);
+                        client[i].x = vec->x;
+                        client[i].y = vec->y;
+                        client[i].theta = vec->theta;
+                        World_detachVehicle(&world, vec);
+                    }
                     ret = close(client[i].socket_TCP);
                     if (errno != EBADF) ERROR_HELPER(ret, "Error closing socket"); 
                 }
