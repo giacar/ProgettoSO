@@ -62,8 +62,13 @@ void handle_signal(int sig){
 
             if (verbosity_level>=General) printf("Socket closed and semaphores destroyed\n");
 
+            if (verbosity_level>=General) printf("Attempting to destroy world and vehicle\n");
+
             World_destroy(&world);
-            free(vehicle);
+
+            //if (verbosity_level>=General) printf("World destroyed\n");
+
+            //if (vehicle) Vehicle_destroy(vehicle);
 
             if (verbosity_level>=General) printf("Vehicle and World destroyed\n");
             //exit(1);
@@ -84,8 +89,13 @@ void handle_signal(int sig){
 
             if (verbosity_level>=General) printf("Socket closed and semaphores destroyed\n");
 
+            if (verbosity_level>=General) printf("Attempting to destroy world and vehicle\n");
+
             World_destroy(&world);
-            free(vehicle);
+
+            //if (verbosity_level>=General) printf("World destroyed\n");
+
+            //if (vehicle) Vehicle_destroy(vehicle);
 
             if (verbosity_level>=General) printf("Vehicle and World destroyed\n");
             //exit(1);
@@ -167,8 +177,6 @@ void* thread_listener_tcp(void* client_args){
             ret = sem_wait(&sem_world_c);
             PTHREAD_ERROR_HELPER(ret, "Failed to wait sem_world_c  adding vehicle \n");
 
-
-
 			v = (Vehicle*) malloc(sizeof(Vehicle));
 			Vehicle_init(v, &world, id, client->image);
             World_addVehicle(&world, v);
@@ -232,7 +240,7 @@ void* thread_listener_udp_M(void* client_args){
     int id=arg->id;
     Vehicle* veicolo=arg->v;
     struct sockaddr_in server_UDP = arg->server_addr_UDP;
-    int slen/*, bytes_sent*/;
+    int slen;
 
 
     /**
@@ -265,8 +273,6 @@ void* thread_listener_udp_M(void* client_args){
 
         if (!communication) break;
 
-        /*bytes_sent = 0;*/
-
         ret = send_UDP(socket_UDP, vehicle_update, vehicle_update_len, 0, &server_UDP, (socklen_t) slen);
         if (ret == -2) {
             printf("Connection closed\n");
@@ -282,13 +288,6 @@ void* thread_listener_udp_M(void* client_args){
     free(vehicle_update);
     if (arg) free(arg);     // messo controllo perché arg è condiviso tra i tre thread
     pthread_exit(NULL);
-
-    /**uscire dal while, significa che il client si sta disconnettendo. Il server deve salvare il suo stato da qualche parte, per ripristinarlo più avanti
-       se il client si connetterà ancora**/
-
-    /**funzioni di send e receive per comunicazione UDP**/
-    //sendto(int sockfd, void* buff, size_t #bytes, int flags, const struct sockaddr* to, socklen_t addrlen)
-    //recvfrom(int sockfd, void* buff, size_t #bytes, int flags, const struct sockaddr* from, socklen_t addrlen)
 }
 
 void* thread_listener_udp_W(void* client_args){
@@ -310,7 +309,6 @@ void* thread_listener_udp_W(void* client_args){
     int socket_UDP = arg->socket_desc_UDP;
     struct sockaddr_in server_UDP = arg->server_addr_UDP;
     socklen_t slen;
-    //int my_id = arg->id;
 
 
     /**
@@ -381,7 +379,7 @@ void* thread_listener_udp_W(void* client_args){
                 PTHREAD_ERROR_HELPER(ret, "Failed to wait sem_world_c in thread_UDP_receiver");
 
                 v = World_getVehicle(&world, id);
-                if(v!=0 /*&& my_id != id*/){
+                if(v!=0){
                     if (verbosity_level>=DebugUDP) printf("[UDP RECEIVER] Positions of vehicle %d received \n", id);
                     v->x = x;
                     v->y = y;
@@ -401,8 +399,6 @@ void* thread_listener_udp_W(void* client_args){
     free(world_update);
     if (arg) free(arg);     // messo controllo perché arg è condiviso tra i tre thread
     pthread_exit(NULL);
-    /**uscire dal while, significa che il client si sta disconnettendo. Il server deve salvare il suo stato da qualche parte, per ripristinarlo più avanti
-       se il client si connetterà ancora**/
 
 }
 
@@ -423,7 +419,6 @@ int main(int argc, char **argv) {
 	} else {
 		printf("Fail! \n");
 	}
-
 
     int ret;
 
@@ -490,7 +485,7 @@ int main(int argc, char **argv) {
 	*	-variabile login_state ha 3 valori 0 se nuovo utente registrato, 1 se già esistente e -1 se password sbagliata
 	**/
 
-  	char stato_login[DIM_BUFF];		// in this variabile there is the login's state
+  	char stato_login[DIM_BUFF];	
   	int user_length;
   	int pass_length;
     int login_state;
@@ -580,8 +575,6 @@ int main(int argc, char **argv) {
 
 		//requesting and receving the ID
 		IdPacket* request_id=(IdPacket*)malloc(sizeof(IdPacket));
-		//PacketHeader id_head;
-		//request_id->header=id_head;
 		request_id->header.type=GetId;
 		request_id->id = -1;
 
@@ -641,8 +634,6 @@ int main(int argc, char **argv) {
         if (verbosity_level>=DebugTCP) printf("[TEXTURE] Allocating my texture\n");
 
         ImagePacket* my_texture = (ImagePacket*) malloc(sizeof(ImagePacket));
-		//PacketHeader img_head;
-		//my_texture->header=img_head;
 		my_texture->header.type=PostTexture;
 		my_texture->id=id->id;
 		my_texture->image=my_texture_for_server;
@@ -721,8 +712,6 @@ int main(int argc, char **argv) {
    		printf("Login success, welcome back %s\n", username);
 		//requesting and receving texture and id
 		IdPacket* request_texture=(IdPacket*)malloc(sizeof(IdPacket));
-		//PacketHeader request_texture_head;
-		//request_texture->header=request_texture_head;
 		request_texture->id=-1; //ancora non lo conosco lo scopro nella risposta
 		request_texture->header.type=GetTexture;
 
@@ -820,8 +809,6 @@ int main(int argc, char **argv) {
 
     if (verbosity_level>=DebugTCP) printf("[ELEVATION_MAP] Waiting for elevation map packet from server\n");
 
-
-
     bytes_read=0;
 
     ret = recv_TCP_packet(socket_desc, elevation_map,0,&bytes_read);
@@ -833,9 +820,7 @@ int main(int argc, char **argv) {
     ImagePacket* elevation=(ImagePacket*)Packet_deserialize(elevation_map,msg_len);
     if (verbosity_level>=DebugTCP) printf("[ELEVATION_MAP] Packet deserialized \n");
  
-
     free(elevation_map);
-
 
 	//requesting and receving map
 
@@ -965,6 +950,7 @@ int main(int argc, char **argv) {
     if (map_elevation) Image_free(map_elevation);
     if (map_texture) Image_free(map_texture);
     if (my_texture) Image_free(my_texture);
+    free(args);
 
 	return 0;
 }

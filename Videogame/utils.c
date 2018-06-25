@@ -30,14 +30,14 @@ int recv_TCP_packet(int socket, char* buf, int flags, int* bytes_read) {
 		bytes_letti += ret;
 	}
 
-	if (verbosity_level>=DebugTCP) printf("[RECV_TCP_PACKET] Byte letti (header) = %d\n", bytes_letti);
+	if (verbosity_level>=DebugTCP) printf("[RECV_TCP_PACKET] Bytes read (header) = %d\n", bytes_letti);
 
 	PacketHeader *head = (PacketHeader*)buf;
 	packet_len = head->size;
 
 	if (verbosity_level>=DebugTCP) printf("[RECV_TCP_PACKET] Header size = %d\n",packet_len);
 
-	if (verbosity_level>=DebugTCP) printf("[RECV_TCP_PACKET] Devo ricevere ancora %d byte\n", packet_len-bytes_letti);
+	if (verbosity_level>=DebugTCP) printf("[RECV_TCP_PACKET] Need to receive %d bytes more\n", packet_len-bytes_letti);
 
 	while (bytes_letti < packet_len) {
 		ret = recv(socket, buf+bytes_letti, packet_len-bytes_letti, flags);
@@ -98,7 +98,7 @@ int recv_TCP(int socket, char *buf, size_t len, int flags) {
 		while (!finito) {
 			ret = recv(socket, buf+bytes_read, 1, flags);
 
-			if (verbosity_level>=DebugTCP) printf("[RECV_TCP] Ho ricevuto byte: %d\n", (int)buf[bytes_read]);
+			if (verbosity_level>=DebugTCP) printf("[RECV_TCP] Received byte: %d\n", (int)buf[bytes_read]);
 
 			if (ret == -1 && errno == EINTR) continue;
 			if (ret == -1 && (errno == ENOTCONN || errno == EPIPE)) {
@@ -111,7 +111,7 @@ int recv_TCP(int socket, char *buf, size_t len, int flags) {
 			}
 
 			if (buf[bytes_read] == '\n' || buf[bytes_read] == '\0') {
-				if (verbosity_level>=DebugTCP) printf("[RECV_TCP] Fine stringa\n");
+				if (verbosity_level>=DebugTCP) printf("[RECV_TCP] End of the string\n");
 				finito = 1;
 			}
 
@@ -150,27 +150,7 @@ int send_TCP(int socket, const char *buf, size_t len, int flags) {
 }
 
 int recv_UDP_packet(int socket, char *buf, int flags, struct sockaddr *src_addr, socklen_t *addrlen, int* bytes_read) {
-	int ret = 1, /*packet_len,*/ bytes_letti= 0;
-
-	/*do {
-		ret = recvfrom(socket, buf, sizeof(PacketHeader), flags, src_addr, addrlen);
-	} while (ret == -1 && errno == EINTR);
-	bytes_letti+=ret;
-	
-	if (verbosity_level>=DebugUDP) printf("[RECV_UDP_PACKET] Byte letti (header) = %d\n", bytes_letti);
-	
-	PacketHeader *head = (PacketHeader*)buf;
-	packet_len = head->size;
-	
-	if (verbosity_level>=DebugUDP) printf("[RECV_UDP_PACKET] Packet size (in header->size) = %d\n",packet_len);
-	if (verbosity_level>=DebugUDP) printf("[RECV_UDP_PACKET] Devo ricevere ancora %d byte\n", packet_len-bytes_letti);
-	
-	do {
-		ret = recvfrom(socket, buf+bytes_letti, packet_len-bytes_letti, flags, src_addr, addrlen);
-	} while (ret == -1 && errno == EINTR);
-	bytes_letti += ret;
-	
-	if (verbosity_level>=DebugUDP) printf("[RECV_UDP_PACKET] Packet size (complete) = %d\n",bytes_letti);*/
+	int ret = 1, bytes_letti= 0;
 	
 	while ((ret = recvfrom(socket, buf, DIM_BUFF, flags, src_addr, addrlen)) < 0) {
 		
@@ -186,62 +166,11 @@ int recv_UDP_packet(int socket, char *buf, int flags, struct sockaddr *src_addr,
 
 	if (verbosity_level>=DebugUDP) {
 		PacketHeader* p = (PacketHeader *) buf; 
-		printf("[RECV_UDP_PACKET] Packet size = %d <=> Byte letti = %d\n", p->size, bytes_letti);
+		printf("[RECV_UDP_PACKET] Packet size = %d <=> Bytes read = %d\n", p->size, bytes_letti);
 	}
 
 	*bytes_read = bytes_letti;
 	ret = bytes_letti;
-
-	return ret;
-}
-
-int recv_UDP(int socket, char *buf, size_t len, int flags, struct sockaddr *src_addr, socklen_t *addrlen) {
-	int ret, bytes_read = 0;
-
-	// Ricezione conoscendo la dimensione (len > 1)
-	if (len > 1) {
-
-		while (bytes_read < len) {
-			ret = recvfrom(socket, buf+bytes_read, len-bytes_read, flags, src_addr, addrlen);
-
-			if (ret == -1 && errno == EINTR) continue;
-			if (ret == -1 && (errno == ENOTCONN || errno == EPIPE)) {
-				printf("Connection closed. ");
-				return -2;
-			}
-
-			bytes_read += ret;
-
-		}
-		ret = bytes_read;
-
-	}
-
-	// Ricezione non conoscendo la dimensione (len == 1)
-
-	else {
-
-		while (1) {
-			ret = recvfrom(socket, buf+bytes_read, len-bytes_read, flags, src_addr, addrlen);
-
-			if (ret == -1 && errno == EINTR) continue;
-			if (ret == -1 && (errno == ENOTCONN || errno == EPIPE)) {
-				printf("Connection closed. ");
-				return -2;
-			}
-
-			if (buf[bytes_read] == '\n' || buf[bytes_read] == '\0') {
-				buf[bytes_read] = '\0';
-				bytes_read++;
-				break;
-			}
-
-			bytes_read++;
-
-		}
-		ret = bytes_read;
-
-	}
 
 	return ret;
 }
