@@ -215,7 +215,7 @@ void* thread_listener_tcp(void* client_args){
     }
 
     free(user);
-    if (arg) free(arg);     // messo controllo perché arg è condiviso tra i tre thread
+    //if (arg) free(arg);     // messo controllo perché arg è condiviso tra i tre thread
     pthread_exit(NULL);
 
 }
@@ -397,7 +397,7 @@ void* thread_listener_udp_W(void* client_args){
     }
 
     free(world_update);
-    if (arg) free(arg);     // messo controllo perché arg è condiviso tra i tre thread
+    //if (arg) free(arg);     // messo controllo perché arg è condiviso tra i tre thread
     pthread_exit(NULL);
 
 }
