@@ -60,6 +60,7 @@ void handle_signal(int sig){
 
             communication = 0;
             main_var = 0;
+            sleep(1);           // attendo che gli altri thread escano dal while
 
             
             for(i=0;i<MAX_USER_NUM;i++){
@@ -91,7 +92,7 @@ void handle_signal(int sig){
 
             if (verbosity_level>=General) printf("Mondo distrutto\n");
 
-            exit(1);
+            //exit(1);
 
             break;
 
@@ -100,6 +101,7 @@ void handle_signal(int sig){
 
             communication = 0;
             main_var = 0;
+            sleep(1);           // attendo che gli altri thread escano dal while
 
             for(i=0;i<MAX_USER_NUM;i++){
                 if(client[i].status==1){
@@ -130,7 +132,7 @@ void handle_signal(int sig){
 
             if (verbosity_level>=General) printf("Mondo distrutto\n");
 
-            exit(1);
+            //exit(1);
 
             break;
 
@@ -958,7 +960,7 @@ void* thread_server_UDP_sender(void* args){
 
     socket = arg->socket_desc_UDP_server;
     clients* client=arg->list;
-    int slen/*, bytes_sent*/;
+    int slen;
 
 
 
@@ -1068,7 +1070,7 @@ void* thread_server_UDP_sender(void* args){
     }
 
     free(msg);
-    free(arg);
+    if (arg) free(arg);     // messo controllo perché arg è condiviso tra i due thread
     pthread_exit(NULL);
 
 }
@@ -1136,7 +1138,7 @@ void* thread_server_UDP_receiver(void* args){
     }
 
     free(msg);
-    free(arg);
+    if (arg) free(arg);     // messo controllo perché arg è condiviso tra i due thread
     pthread_exit(NULL);
 
 }
@@ -1339,5 +1341,10 @@ int main(int argc, char **argv) {
 
     }
 
-  return 0;
+    // libero l'elevation map, la texture map e la texture del veicolo
+    if (surface_elevation) Image_free(surface_elevation);
+    if (surface_texture) Image_free(surface_texture);
+    if (vehicle_texture) Image_free(vehicle_texture);
+
+    return 0;
 }

@@ -50,6 +50,7 @@ void handle_signal(int sig){
         case SIGALRM:
             if (verbosity_level>=General) printf("Closing...\n");
             communication = 0;
+            sleep(1);           // attendo che gli altri thread escano dal while
             ret = close(socket_desc);
             ERROR_HELPER(ret, "Error in closing socket desc TCP");
 
@@ -65,12 +66,13 @@ void handle_signal(int sig){
             free(vehicle);
 
             if (verbosity_level>=General) printf("Mondo e veicolo distrutti\n");
-            exit(1);
+            //exit(1);
             break;
 
         case SIGSEGV:
             if (verbosity_level>=General) printf("Segmentation fault... closing\n");
             communication = 0;
+            sleep(1);       // attendo che gli altri thread escano dal while
             ret = close(socket_desc);
             ERROR_HELPER(ret, "Error in closing socket desc TCP");
 
@@ -86,7 +88,7 @@ void handle_signal(int sig){
             free(vehicle);
 
             if (verbosity_level>=General) printf("Mondo e veicolo distrutti\n");
-            exit(1);
+            //exit(1);
             break;
 
         case SIGPIPE:
@@ -205,7 +207,7 @@ void* thread_listener_tcp(void* client_args){
     }
 
     free(user);
-    free(arg);
+    if (arg) free(arg);     // messo controllo perché arg è condiviso tra i tre thread
     pthread_exit(NULL);
 
 }
@@ -278,7 +280,7 @@ void* thread_listener_udp_M(void* client_args){
 
     Packet_free((PacketHeader *) update);
     free(vehicle_update);
-    free(arg);
+    if (arg) free(arg);     // messo controllo perché arg è condiviso tra i tre thread
     pthread_exit(NULL);
 
     /**uscire dal while, significa che il client si sta disconnettendo. Il server deve salvare il suo stato da qualche parte, per ripristinarlo più avanti
@@ -397,7 +399,7 @@ void* thread_listener_udp_W(void* client_args){
     }
 
     free(world_update);
-    free(arg);
+    if (arg) free(arg);     // messo controllo perché arg è condiviso tra i tre thread
     pthread_exit(NULL);
     /**uscire dal while, significa che il client si sta disconnettendo. Il server deve salvare il suo stato da qualche parte, per ripristinarlo più avanti
        se il client si connetterà ancora**/
@@ -958,6 +960,11 @@ int main(int argc, char **argv) {
 	ERROR_HELPER(ret, "Could not detach thread");
 
 	WorldViewer_runGlobal(&world, vehicle, &argc, argv);
+
+    // libero l'elevation map, la texture map e la texture del veicolo
+    if (map_elevation) Image_free(map_elevation);
+    if (map_texture) Image_free(map_texture);
+    if (my_texture) Image_free(my_texture);
 
 	return 0;
 }
