@@ -236,16 +236,18 @@ void Surface_draw(Surface* s) {
 
 
 void Vehicle_applyTexture(Vehicle* v) {
-  printf("applying texture %p to vehicle %p\n", v->texture, v);
-  v->_destructor=Vehicle_destructor;
-  if (v->gl_list>-1)
-    glDeleteLists(v->gl_list, 1);
-  v->gl_list = -1;
-  if (v->gl_texture>-1)
-    glDeleteTextures(1, (unsigned int*) &v->gl_texture);
-  v->gl_texture = -1;
-  if (v->texture)
-    v->gl_texture=Image_toTexture(v->texture);
+  if (v){
+    printf("applying texture %p to vehicle %p\n", v->texture, v);
+    v->_destructor=Vehicle_destructor;
+    if (v->gl_list>-1)
+      glDeleteLists(v->gl_list, 1);
+    v->gl_list = -1;
+    if (v->gl_texture>-1)
+      glDeleteTextures(1, (unsigned int*) &v->gl_texture);
+    v->gl_texture = -1;
+    if (v->texture)
+      v->gl_texture=Image_toTexture(v->texture);
+  }
 }
 
 void Vehicle_draw(Vehicle* v){

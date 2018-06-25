@@ -50,7 +50,7 @@ void handle_signal(int sig){
         case SIGALRM:
             if (verbosity_level>=General) printf("Closing...\n");
             communication = 0;
-            sleep(1);           // attendo che gli altri thread escano dal while
+            sleep(2);           // attendo che gli altri thread escano dal while
             ret = close(socket_desc);
             ERROR_HELPER(ret, "Error in closing socket desc TCP");
 
@@ -68,16 +68,16 @@ void handle_signal(int sig){
 
             //if (verbosity_level>=General) printf("World destroyed\n");
 
-            //if (vehicle) Vehicle_destroy(vehicle);
+            //if (vehicle) free(vehicle);
 
             if (verbosity_level>=General) printf("Vehicle and World destroyed\n");
-            //exit(1);
+            exit(1);
             break;
 
         case SIGSEGV:
             if (verbosity_level>=General) printf("Segmentation fault... closing\n");
             communication = 0;
-            sleep(1);       // attendo che gli altri thread escano dal while
+            sleep(2);       // attendo che gli altri thread escano dal while
             ret = close(socket_desc);
             ERROR_HELPER(ret, "Error in closing socket desc TCP");
 
@@ -95,11 +95,11 @@ void handle_signal(int sig){
 
             //if (verbosity_level>=General) printf("World destroyed\n");
 
-            //if (vehicle) Vehicle_destroy(vehicle);
+            //if (vehicle) free(vehicle);
 
             if (verbosity_level>=General) printf("Vehicle and World destroyed\n");
-            //exit(1);
             break;
+            exit(1);
 
         case SIGPIPE:
             if (verbosity_level>=General) printf("Socket closed\n");
@@ -196,7 +196,7 @@ void* thread_listener_tcp(void* client_args){
 				int id=clientd->id;
 
                 ret = sem_wait(&sem_world_c);
-                PTHREAD_ERROR_HELPER(ret, "Failed to wait sem_world_c  removing vehicle \n");
+                PTHREAD_ERROR_HELPER(ret, "Failed to wait sem_world_c removing vehicle \n");
 
                 v = World_getVehicle(&world, id);
 				World_detachVehicle(&world, v);
@@ -204,7 +204,7 @@ void* thread_listener_tcp(void* client_args){
                 if (verbosity_level>=DebugTCP) printf("[TCP] Removing vehicle %d\n",id);
 
                 ret = sem_post(&sem_world_c);
-                PTHREAD_ERROR_HELPER(ret, "Failed to post sem_world_c  removing vehicle \n");
+                PTHREAD_ERROR_HELPER(ret, "Failed to post sem_world_c removing vehicle \n");
 
                 free(v);
 			}
@@ -286,7 +286,7 @@ void* thread_listener_udp_M(void* client_args){
 
     Packet_free((PacketHeader *) update);
     free(vehicle_update);
-    if (arg) free(arg);     // messo controllo perché arg è condiviso tra i tre thread
+    //if (arg) free(arg);     // messo controllo perché arg è condiviso tra i tre thread
     pthread_exit(NULL);
 }
 
@@ -358,7 +358,7 @@ void* thread_listener_udp_W(void* client_args){
             dimensione_mondo = ret;
 
             wup = (WorldUpdatePacket*) Packet_deserialize(world_update, dimensione_mondo);
-            if (verbosity_level>=DebugUDP) printf("[UDP RECEIVER] World updated packet deserialized\n");
+            if (verbosity_level>=DebugUDP) printf("[UDP RECEIVER] World update packet deserialized\n");
             int num_vehicles = wup->num_vehicles;
             client_update = wup->updates; 
 

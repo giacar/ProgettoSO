@@ -926,7 +926,7 @@ void* thread_server_TCP(void* args){
     Packet_free((PacketHeader *) test);
     ret=close(socket);
     PTHREAD_ERROR_HELPER(ret,"Error closing socket\n");
-    free(arg);
+    if (arg) free(arg);
     pthread_exit(NULL);
 
     /** FINE LAVORO TCP **/
@@ -1053,7 +1053,7 @@ void* thread_server_UDP_sender(void* args){
     }
 
     free(msg);
-    if (arg) free(arg);     // messo controllo perché arg è condiviso tra i due thread
+    //if (arg) free(arg);     // messo controllo perché arg è condiviso tra i due thread
     pthread_exit(NULL);
 
 }
@@ -1121,7 +1121,7 @@ void* thread_server_UDP_receiver(void* args){
     }
 
     free(msg);
-    if (arg) free(arg);     // messo controllo perché arg è condiviso tra i due thread
+    //if (arg) free(arg);     // messo controllo perché arg è condiviso tra i due thread
     pthread_exit(NULL);
 
 }
@@ -1326,6 +1326,7 @@ int main(int argc, char **argv) {
     if (surface_elevation) Image_free(surface_elevation);
     if (surface_texture) Image_free(surface_texture);
     if (vehicle_texture) Image_free(vehicle_texture);
+    free(args_UDP);
 
     return 0;
 }
