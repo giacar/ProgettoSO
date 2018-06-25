@@ -60,12 +60,12 @@ void handle_signal(int sig){
             ret = sem_destroy(&sem_world_c);
             ERROR_HELPER(ret, "Error in destroy sem_world_c");
 
-            if (verbosity_level>=General) printf("Socket chiuse e semafori distrutti\n");
+            if (verbosity_level>=General) printf("Socket closed and semaphores destroyed\n");
 
             World_destroy(&world);
             free(vehicle);
 
-            if (verbosity_level>=General) printf("Mondo e veicolo distrutti\n");
+            if (verbosity_level>=General) printf("Vehicle and World destroyed\n");
             //exit(1);
             break;
 
@@ -82,12 +82,12 @@ void handle_signal(int sig){
             ret = sem_destroy(&sem_world_c);
             ERROR_HELPER(ret, "Error in destroy sem_world_c");
 
-            if (verbosity_level>=General) printf("Socket chiuse e semafori distrutti\n");
+            if (verbosity_level>=General) printf("Socket closed and semaphores destroyed\n");
 
             World_destroy(&world);
             free(vehicle);
 
-            if (verbosity_level>=General) printf("Mondo e veicolo distrutti\n");
+            if (verbosity_level>=General) printf("Vehicle and World destroyed\n");
             //exit(1);
             break;
 
@@ -138,7 +138,7 @@ void* thread_listener_tcp(void* client_args){
     while (communication){
 
         //Il server invia le celle dell'array dei connessi che non sono messe a 0 o a -1.
-        if (verbosity_level>=DebugTCP) printf("\n[TCP] Ricevo gli utenti già nel mondo\n");
+        if (verbosity_level>=DebugTCP) printf("\n[TCP] Receiving users already in world\n");
 
         ret = recv_TCP_packet(socket, user, 0, &bytes_read);
         if (ret == -2 || ret == 0){
@@ -151,13 +151,13 @@ void* thread_listener_tcp(void* client_args){
 
         msg_len=bytes_read;
 
-        if (verbosity_level>=DebugTCP) printf("[TCP] Ricevuti i client connessi\n");
+        if (verbosity_level>=DebugTCP) printf("[TCP] Clients connected received\n");
 
-        if (verbosity_level>=DebugTCP) printf("[TCP] Deserializzo user\n");
+        if (verbosity_level>=DebugTCP) printf("[TCP] Deserializing user\n");
 
         PacketHeader* clienth = Packet_deserialize(user, msg_len);
 
-        if (verbosity_level>=DebugTCP) printf("[TCP] User deserializzato\n");
+        if (verbosity_level>=DebugTCP) printf("[TCP] User deserialized\n");
 
         if (clienth->type==PostTexture){
 			ImagePacket* client=(ImagePacket*)clienth;
@@ -173,7 +173,7 @@ void* thread_listener_tcp(void* client_args){
 			Vehicle_init(v, &world, id, client->image);
             World_addVehicle(&world, v);
 
-            if (verbosity_level>=DebugTCP) printf("[TCP] Aggiunto veicolo %d\n",id);
+            if (verbosity_level>=DebugTCP) printf("[TCP] Added Vehicle %d\n",id);
 
             ret = sem_post(&sem_world_c);
             PTHREAD_ERROR_HELPER(ret, "Failed to post sem_world_c  adding vehicle \n");
@@ -193,7 +193,7 @@ void* thread_listener_tcp(void* client_args){
                 v = World_getVehicle(&world, id);
 				World_detachVehicle(&world, v);
 
-                if (verbosity_level>=DebugTCP) printf("[TCP] Rimosso  veicolo %d\n",id);
+                if (verbosity_level>=DebugTCP) printf("[TCP] Removing vehicle %d\n",id);
 
                 ret = sem_post(&sem_world_c);
                 PTHREAD_ERROR_HELPER(ret, "Failed to post sem_world_c  removing vehicle \n");
@@ -203,7 +203,7 @@ void* thread_listener_tcp(void* client_args){
             Packet_free((PacketHeader *) clientd);
 		}
 
-        if (verbosity_level>=DebugTCP) printf("[TCP] Eliminati i client disconnessi dal mondo\n");
+        if (verbosity_level>=DebugTCP) printf("[TCP] Removed client disconnected\n");
     }
 
     free(user);
@@ -259,9 +259,9 @@ void* thread_listener_udp_M(void* client_args){
         update->id = id;
 
         int vehicle_update_len = Packet_serialize(vehicle_update, &(update->header));
-        if (verbosity_level>=DebugUDP) printf("[UDP SENDER] Serializzato pacchetto con le proprie forze  di lunghezza %d , io ho id %d \n", vehicle_update_len,update->id);
+        if (verbosity_level>=DebugUDP) printf("[UDP SENDER] Serializing packet with my forces, length %d , I have id %d \n", vehicle_update_len,update->id);
         
-        if (verbosity_level>=DebugUDP) printf("[UDP SENDER] Forze: %f e %f \n",update->rotational_force , update->translational_force);
+        if (verbosity_level>=DebugUDP) printf("[UDP SENDER] Forces: %f e %f \n",update->rotational_force , update->translational_force);
 
         if (!communication) break;
 
@@ -273,7 +273,7 @@ void* thread_listener_udp_M(void* client_args){
             break;
         }
         PTHREAD_ERROR_HELPER(ret, "Could not send vehicle updates to server");
-        if (verbosity_level>=DebugUDP) printf("[UDP SENDER] Inviato pacchetto con le proprie forze\n");
+        if (verbosity_level>=DebugUDP) printf("[UDP SENDER] Packet with my forces sent\n");
         usleep(2000);
 
     }
@@ -335,7 +335,7 @@ void* thread_listener_udp_W(void* client_args){
 
         //non sappiamo quanto è grande la stringa che ci deve arrivare e che dobbiamo convertire in numero intero
 
-        if (verbosity_level>=DebugUDP) printf("[UDP RECEIVER] Mi metto in attesa del pacchetto world_update...\n");
+        if (verbosity_level>=DebugUDP) printf("[UDP RECEIVER] Waiting for world_update packet...\n");
 
         slen = sizeof(server_UDP);
 
@@ -345,11 +345,11 @@ void* thread_listener_udp_W(void* client_args){
             break;
         }
 
-        if (verbosity_level>=DebugUDP) printf("[UDP RECEIVER] Ricevuto pacchetto col mondo aggiornato\n");
+        if (verbosity_level>=DebugUDP) printf("[UDP RECEIVER] Packet world_update received\n");
 
         if (!communication) break;
 
-        if (verbosity_level>=DebugUDP) printf("[UDP RECEIVER] Sono stati ricevuti %d bytes\n", ret);
+        if (verbosity_level>=DebugUDP) printf("[UDP RECEIVER] Received %d bytes\n", ret);
 
         PacketHeader* header = (PacketHeader*) world_update;
         if (header->size != ret) ERROR_HELPER(-1, "Partial read!");
@@ -360,7 +360,7 @@ void* thread_listener_udp_W(void* client_args){
             dimensione_mondo = ret;
 
             wup = (WorldUpdatePacket*) Packet_deserialize(world_update, dimensione_mondo);
-            if (verbosity_level>=DebugUDP) printf("[UDP RECEIVER] Deserializzato pacchetto con il mondo aggiornato\n");
+            if (verbosity_level>=DebugUDP) printf("[UDP RECEIVER] World updated packet deserialized\n");
             int num_vehicles = wup->num_vehicles;
             client_update = wup->updates; 
 
@@ -382,7 +382,7 @@ void* thread_listener_udp_W(void* client_args){
 
                 v = World_getVehicle(&world, id);
                 if(v!=0 /*&& my_id != id*/){
-                    if (verbosity_level>=DebugUDP) printf("[UDP RECEIVER] Posizioni veicolo %d ricevute \n", id);
+                    if (verbosity_level>=DebugUDP) printf("[UDP RECEIVER] Positions of vehicle %d received \n", id);
                     v->x = x;
                     v->y = y;
                     v->theta = theta;
@@ -498,54 +498,54 @@ int main(int argc, char **argv) {
     while (1) {
         printf("LOGIN\nPlease enter username: ");
         ret = scanf("%s", username);
-        if (verbosity_level>=DebugTCP) printf("[LOGIN] scanf fatta: %s\n", username);
+        if (verbosity_level>=DebugTCP) printf("[LOGIN] scanf done: %s\n", username);
         user_length = strlen(username);
         if (user_length > 64) printf("ERROR! username too length, please retry.\n");
         else break;
     }
 
-    if (verbosity_level>=General) printf("[LOGIN] username inserito\n");
+    if (verbosity_level>=General) printf("[LOGIN] username added\n");
 
 	ret = send_TCP(socket_desc, username, user_length+1, 0);
 	ERROR_HELPER(ret, "Failed to send login data");
 
-	if (verbosity_level>=DebugTCP) printf("[LOGIN] username INVIATO\n");
+	if (verbosity_level>=DebugTCP) printf("[LOGIN] username SENT\n");
 
 	ret = recv_TCP(socket_desc, stato_login, 1, 0);
 	ERROR_HELPER(ret, "Failed to update login's state");
 
-	if (verbosity_level>=DebugTCP) printf("[LOGIN] login state per username ricevuto\n");
+	if (verbosity_level>=DebugTCP) printf("[LOGIN] login state for username received\n");
 
     login_state = atoi(stato_login);
 
 	if (login_state == 1) printf("\nWelcome back %s.", username);
 	else if (login_state == 0) printf("\nWelcome %s.", username);
     else if (login_state == 999) {
-        printf("\nIl client è già connesso. Riprovare più tardi\n");
+        printf("\nClient already connected. Please try again later\n");
         alarm(0);
         exit(0);
     }
 	else {
 		// Non c'è più posto tra gli user
-		printf("\nÈ stato raggiunto il massimo numero di utenti. Riprova più tardi.\n");
+		printf("\nMax user number reached. Please try again later.\n");
 		exit(0);
 	}
 
 	printf(" Please enter password: ");
 	ret = scanf("%s", password);
 	printf("\n");
-	if (verbosity_level>=DebugTCP) printf("[LOGIN] scanf fatta: %s\n", password);
+	if (verbosity_level>=DebugTCP) printf("[LOGIN] scanf done: %s\n", password);
 	pass_length = strlen(password);
 
 	ret = send_TCP(socket_desc, password, pass_length+1, 0);
 	ERROR_HELPER(ret, "Failed to send login data");
 
-	if (verbosity_level>=DebugTCP) printf("[LOGIN] password INVIATA\n");
+	if (verbosity_level>=DebugTCP) printf("[LOGIN] password SENT\n");
 
 	ret = recv_TCP(socket_desc, stato_login, 1, 0);
 	ERROR_HELPER(ret, "Failed to update login's state");
 
-	if (verbosity_level>=DebugTCP) printf("[LOGIN] login state per password ricevuta\n");
+	if (verbosity_level>=DebugTCP) printf("[LOGIN] login state for password received\n");
 
     login_state = atoi(stato_login);
 
@@ -558,12 +558,12 @@ int main(int argc, char **argv) {
 		ret = send_TCP(socket_desc, password, pass_length+1, 0);
 		ERROR_HELPER(ret, "Failed to send login data");
 
-		if (verbosity_level>=DebugTCP) printf("[LOGIN] Nuova password inviata\n");
+		if (verbosity_level>=DebugTCP) printf("[LOGIN] New password sent\n");
 
 		ret = recv_TCP(socket_desc, stato_login, 1, 0);
 		ERROR_HELPER(ret, "Failed to receive login's state");
 
-		if (verbosity_level>=DebugTCP) printf("[LOGIN] login state della password ricevuto\n");
+		if (verbosity_level>=DebugTCP) printf("[LOGIN] login state for password received\n");
 
         login_state = atoi(stato_login);
 	}
@@ -590,27 +590,27 @@ int main(int argc, char **argv) {
 
 		size_t idPacket_request_len = Packet_serialize(idPacket_request,&(request_id->header));
 
-		if (verbosity_level>=DebugTCP) printf("[IDPACKET] Sto per mandare idPacket\n");
+		if (verbosity_level>=DebugTCP) printf("[IDPACKET] Sending IdPacket...\n");
 
-        if (verbosity_level>=DebugTCP) printf("[IDPACKET] Sto per mandare: %d\n", (int) idPacket_request_len);
+        if (verbosity_level>=DebugTCP) printf("[IDPACKET] Sending: %d\n", (int) idPacket_request_len);
 
 		ret = send_TCP(socket_desc, idPacket_request, idPacket_request_len, 0);
 		ERROR_HELPER(ret, "Could not send id request  to socket");
 
-        if (verbosity_level>=DebugTCP) printf("[IDPACKET] Byte inviati: %d\n", (int) ret);
+        if (verbosity_level>=DebugTCP) printf("[IDPACKET] Bytes sent: %d\n", (int) ret);
 
         if (ret == idPacket_request_len){
-            if (verbosity_level>=DebugTCP) printf("[IDPACKET] Tutto ok\n");
+            if (verbosity_level>=DebugTCP) printf("[IDPACKET] Perfect\n");
         }
         else{
             if (verbosity_level>=DebugTCP){
-                printf("[IDPACKET] No buono\n");
+                printf("[IDPACKET] No good\n");
                 printf("[IDPACKET] ret = %d\n", ret);
                 printf("[IDPACKET] idPacket_request_len = %d\n", (int) idPacket_request_len);
             }
         }
 
-		if (verbosity_level>=DebugTCP) printf("[IDPACKET] idPacket richiesto\n");
+		if (verbosity_level>=DebugTCP) printf("[IDPACKET] idPacket requested\n");
 
         free(idPacket_request);
         Packet_free((PacketHeader *) request_id);
@@ -618,12 +618,12 @@ int main(int argc, char **argv) {
 		ret = recv_TCP_packet(socket_desc, idPacket, 0, &bytes_read);
 		ERROR_HELPER(ret, "Could not read id from socket");
 
-        if (verbosity_level>=DebugTCP) printf("[IDPACKET] Byte letti: %d\n", (int) bytes_read);
+        if (verbosity_level>=DebugTCP) printf("[IDPACKET] Bytes read: %d\n", (int) bytes_read);
 
-        if (verbosity_level>=DebugTCP) printf("[IDPACKET] idPacket ricevuto\n");
+        if (verbosity_level>=DebugTCP) printf("[IDPACKET] idPacket received\n");
 
         if (bytes_read != (int) sizeof(IdPacket)){
-            if (verbosity_level>=DebugTCP) printf("[IDPACKET] C'è un problema! Il numero di byte arrivati non corrisponde!\n");
+            if (verbosity_level>=DebugTCP) printf("[IDPACKET] There's a problem! Bytes size not matching!\n");
         }
 
 		msg_len=bytes_read;
@@ -631,14 +631,14 @@ int main(int argc, char **argv) {
 		IdPacket* id = (IdPacket*) Packet_deserialize(idPacket, msg_len);
 		if (id->header.type!=GetId) ERROR_HELPER(-1,"Error in packet type \n");
 
-        if (verbosity_level>=DebugTCP) printf("[IDPACKET] idPacket deserializzato\n");
+        if (verbosity_level>=DebugTCP) printf("[IDPACKET] idPacket deserialized\n");
 
         free(idPacket);
 
 		// sending my texture
         char *texture_for_server = (char *)malloc(DIM_BUFF*sizeof(char));
 
-        if (verbosity_level>=DebugTCP) printf("[TEXTURE] Alloco la mia texture\n");
+        if (verbosity_level>=DebugTCP) printf("[TEXTURE] Allocating my texture\n");
 
         ImagePacket* my_texture = (ImagePacket*) malloc(sizeof(ImagePacket));
 		//PacketHeader img_head;
@@ -649,27 +649,27 @@ int main(int argc, char **argv) {
 
         if (verbosity_level>=DebugTCP) printf("[TEXTURE] Sizeof ImagePacket: %d\n", (int) sizeof(ImagePacket));
 
-        if (verbosity_level>=DebugTCP) printf("[TEXTURE] Pacchetto my_texture allocato. Serializzo.\n");
+        if (verbosity_level>=DebugTCP) printf("[TEXTURE] My_texture packet allocated. Serializing...\n");
 
 		size_t texture_for_server_len = Packet_serialize(texture_for_server, &(my_texture->header));
 
-        if (verbosity_level>=DebugTCP) printf("[TEXTURE] Texture serializzata.\n");
+        if (verbosity_level>=DebugTCP) printf("[TEXTURE] Texture serialized.\n");
 
-        if (verbosity_level>=DebugTCP) printf("[TEXTURE] Sto per inviare: %d\n", (int) texture_for_server_len);
+        if (verbosity_level>=DebugTCP) printf("[TEXTURE] Sending: %d\n", (int) texture_for_server_len);
 
 		ret = send_TCP(socket_desc, texture_for_server, texture_for_server_len, 0);
 		ERROR_HELPER(ret, "Could not send my texture for server");
 
-        if (verbosity_level>=DebugTCP) printf("[TEXTURE] texture_for_server inviata\n");
+        if (verbosity_level>=DebugTCP) printf("[TEXTURE] texture_for_server sent\n");
 
-        if (verbosity_level>=DebugTCP) printf("[TEXTURE] Byte inviati: %d\n", (int) ret);
+        if (verbosity_level>=DebugTCP) printf("[TEXTURE] Bytes sent %d\n", (int) ret);
 
         if (ret == texture_for_server_len){
-            if (verbosity_level>=DebugTCP) printf("[TEXTURE] Tutto ok\n");
+            if (verbosity_level>=DebugTCP) printf("[TEXTURE] Perfect\n");
         }
         else{
             if (verbosity_level>=DebugTCP){
-                printf("[TEXTURE] No buono\n");
+                printf("[TEXTURE] No good\n");
                 printf("[TEXTURE] ret = %d\n", ret);
                 printf("[TEXTURE] texture_for_server_len = %d\n", (int) texture_for_server_len);
             }
@@ -681,7 +681,7 @@ int main(int argc, char **argv) {
 
 		// receving my texture from server
 
-        if (verbosity_level>=DebugTCP) printf("[TEXTURE] Attendo la mia texture dal server\n");
+        if (verbosity_level>=DebugTCP) printf("[TEXTURE] Waiting for my texture from server\n");
 
 		char *my_texture_server = (char *)malloc(DIM_BUFF*sizeof(char));
 
@@ -690,20 +690,20 @@ int main(int argc, char **argv) {
 		ret = recv_TCP_packet(socket_desc, my_texture_server, 0, &bytes_read);
 		ERROR_HELPER(ret, "Could not read my texture from socket");
 
-        if (verbosity_level>=DebugTCP) printf("[TEXTURE] Byte letti: %d\n", bytes_read);
+        if (verbosity_level>=DebugTCP) printf("[TEXTURE] Bytes read: %d\n", bytes_read);
 
-        if (verbosity_level>=DebugTCP) printf("[TEXTURE] my_texture_server ricevuta\n");
+        if (verbosity_level>=DebugTCP) printf("[TEXTURE] my_texture_server received\n");
 
 		msg_len=bytes_read;
 
-        if (verbosity_level>=DebugTCP) printf("[TEXTURE] Deserializzo la mia texture ricevuta\n");
+        if (verbosity_level>=DebugTCP) printf("[TEXTURE] My texture received deserialized\n");
 
 		ImagePacket* my_texture_received = (ImagePacket*) Packet_deserialize(my_texture_server,msg_len);
 		/* Potrebbe dare problemi: confronta gli indirizzi a cui puntano e non il contenuto
         if(my_texture_received!=my_texture) ERROR_HELPER(-1,"error in communication: texture not matching! \n");*/
 
-        if (verbosity_level>=DebugTCP) printf("[CLIENT] Texture deserializzata. Aggiorno i miei parametri id e texture\n");
-        if (verbosity_level>=DebugTCP) printf("[CLIENT] La Texture deserializzata ha campo size = %d\n", my_texture_received->header.size);
+        if (verbosity_level>=DebugTCP) printf("[CLIENT] Texture deserialized. Updating my id and texture parameters\n");
+        if (verbosity_level>=DebugTCP) printf("[CLIENT] Deserialized texture has size field = %d\n", my_texture_received->header.size);
 
         free(my_texture_server);
 
@@ -714,7 +714,7 @@ int main(int argc, char **argv) {
         my_texture_received->image = NULL;
         Packet_free((PacketHeader *) my_texture_received);
 
-        if (verbosity_level>=DebugTCP) printf("[CLIENT] Parametri aggiornati\n"); 
+        if (verbosity_level>=DebugTCP) printf("[CLIENT] Parameters updated\n"); 
     }
 
    	else if (login_state == 1) {
@@ -732,22 +732,22 @@ int main(int argc, char **argv) {
 
 		size_t request_texture_len = Packet_serialize(request_texture_for_server, &(request_texture->header));
 
-        if (verbosity_level>=DebugTCP) printf("[CLIENT] Invio la richiesta di texture al server\n");
+        if (verbosity_level>=DebugTCP) printf("[CLIENT] Sending texture request to server\n");
 
 		ret = send_TCP(socket_desc, request_texture_for_server, request_texture_len, 0);
 		ERROR_HELPER(ret, "Could not send my texture for server");
 
-        if (verbosity_level>=DebugTCP) printf("[CLIENT] Richiesta inviata\n");
+        if (verbosity_level>=DebugTCP) printf("[CLIENT] Request sent\n");
 
         free(request_texture_for_server);
         Packet_free((PacketHeader *) request_texture);
 
-        if (verbosity_level>=DebugTCP) printf("[CLIENT] Ricevo la texture dal server\n");
+        if (verbosity_level>=DebugTCP) printf("[CLIENT] Receiving my texture from server\n");
 
 		ret = recv_TCP_packet(socket_desc, my_texture, 0, &bytes_read);
 		ERROR_HELPER(ret, "Could not read my texture from socket");
 
-        if (verbosity_level>=DebugTCP) printf("[CLIENT] Texture ricevuta\n");
+        if (verbosity_level>=DebugTCP) printf("[CLIENT] Texture received\n");
 
 		msg_len=bytes_read;
 
@@ -763,13 +763,13 @@ int main(int argc, char **argv) {
         my_texture_received->image = NULL;
         Packet_free((PacketHeader *) my_texture_received);
 
-        if (verbosity_level>=DebugTCP) printf("[CLIENT] Ricevo le vecchie coordinate dal server\n");
+        if (verbosity_level>=DebugTCP) printf("[CLIENT] Receiving old coordinates from server\n");
 
         // ricevo le vecchie coordinate
         ret = recv_TCP(socket_desc, my_coord_buf, sizeof(ClientUpdate), 0);
         if (ret != sizeof(ClientUpdate)) ERROR_HELPER(-1, "Could not receive old position");
 
-        if (verbosity_level>=DebugTCP) printf("[CLIENT] Coordinate ricevute\n");
+        if (verbosity_level>=DebugTCP) printf("[CLIENT] Coordinates received\n");
 
         my_coord = (ClientUpdate *)malloc(DIM_BUFF*sizeof(ClientUpdate));
         memcpy(my_coord, my_coord_buf, sizeof(ClientUpdate));
@@ -777,7 +777,7 @@ int main(int argc, char **argv) {
         free(my_coord_buf);
 	}
 
-    if (verbosity_level>=DebugTCP) printf("[ELEVATION_MAP] Faccio la richiesta di elevation_map\n");
+    if (verbosity_level>=DebugTCP) printf("[ELEVATION_MAP] Requesting elevation map\n");
 
 	//requesting and receving elevation map
 	IdPacket* request_elevation=(IdPacket*)malloc(sizeof(IdPacket));
@@ -786,39 +786,39 @@ int main(int argc, char **argv) {
 	request_elevation->id=my_id;
 	request_elevation->header.type=GetElevation;
 
-    if (verbosity_level>=DebugTCP) printf("[ELEVATION_MAP] Pacchetto richiesta elevation_map creato\n");
+    if (verbosity_level>=DebugTCP) printf("[ELEVATION_MAP] Elevation map packet request created\n");
 
 	char *request_elevation_for_server = (char *)malloc(DIM_BUFF*sizeof(char));
 	char *elevation_map = (char *)malloc(DIM_BUFF*sizeof(char));
 
-    if (verbosity_level>=DebugTCP) printf("[ELEVATION_MAP] Serializzo il pacchetto\n");
+    if (verbosity_level>=DebugTCP) printf("[ELEVATION_MAP] Packet serializing...\n");
 
 	size_t request_elevation_len =Packet_serialize(request_elevation_for_server, &(request_elevation->header));
 
-    if (verbosity_level>=DebugTCP) printf("[ELEVATION_MAP] Pacchetto serializzato\n");
+    if (verbosity_level>=DebugTCP) printf("[ELEVATION_MAP] Packet serialized\n");
 
 	ret = send_TCP(socket_desc, request_elevation_for_server, request_elevation_len, 0);
 	ERROR_HELPER(ret, "Could not send my texture for server");
 
-    if (verbosity_level>=DebugTCP) printf("[ELEVATION_MAP] Byte inviati: %d\n", ret);
+    if (verbosity_level>=DebugTCP) printf("[ELEVATION_MAP] Bytes sent: %d\n", ret);
 
     if (ret == request_elevation_len){
-        if (verbosity_level>=DebugTCP) printf("[ELEVATION_MAP] Tutto ok\n");
+        if (verbosity_level>=DebugTCP) printf("[ELEVATION_MAP] Everything's alright\n");
     }
     else{
         if (verbosity_level>=DebugTCP){
-            printf("[ELEVATION_MAP] No buono\n");
+            printf("[ELEVATION_MAP] No good\n");
             printf("[ELEVATION_MAP] ret = %d\n", ret);
             printf("[ELEVATION_MAP] request_elevation_len = %d\n", (int) request_elevation_len);
         }
     }
 
-    if (verbosity_level>=DebugTCP) printf("[ELEVATION_MAP] Pacchetto di richiesta inviato\n");
+    if (verbosity_level>=DebugTCP) printf("[ELEVATION_MAP] Request packet sent\n");
 
     free(request_elevation_for_server);
     Packet_free((PacketHeader *) request_elevation);
 
-    if (verbosity_level>=DebugTCP) printf("[ELEVATION_MAP] Attendo il pacchetto di elevation_map dal server\n");
+    if (verbosity_level>=DebugTCP) printf("[ELEVATION_MAP] Waiting for elevation map packet from server\n");
 
 
 
@@ -829,9 +829,9 @@ int main(int argc, char **argv) {
     
     msg_len=bytes_read;
 
-    if (verbosity_level>=DebugTCP) printf("[ELEVATION_MAP] Byte letti: %d\n", (int)msg_len);
+    if (verbosity_level>=DebugTCP) printf("[ELEVATION_MAP] Bytes read: %d\n", (int)msg_len);
     ImagePacket* elevation=(ImagePacket*)Packet_deserialize(elevation_map,msg_len);
-    if (verbosity_level>=DebugTCP) printf("[ELEVATION_MAP] Pacchetto deserializzato \n");
+    if (verbosity_level>=DebugTCP) printf("[ELEVATION_MAP] Packet deserialized \n");
  
 
     free(elevation_map);
@@ -839,11 +839,11 @@ int main(int argc, char **argv) {
 
 	//requesting and receving map
 
-    if (verbosity_level>=DebugTCP) printf("[MAP] Richiedo la mappa al server\n");
+    if (verbosity_level>=DebugTCP) printf("[MAP] Requesting map to server\n");
 
 	char *request_texture_map_for_server = (char *)malloc(DIM_BUFF*sizeof(char)); //buffer per la richiesta della mappa
 
-    if (verbosity_level>=DebugTCP) printf("[MAP] Creo il pacchetto di richiesta\n");
+    if (verbosity_level>=DebugTCP) printf("[MAP] Creating request packet\n");
 
 	IdPacket* request_map=(IdPacket*)malloc(sizeof(IdPacket));
 	PacketHeader request_map_head;
@@ -851,23 +851,23 @@ int main(int argc, char **argv) {
 	request_map->header.type=GetTexture;
 	request_map->id=my_id;
 
-    if (verbosity_level>=DebugTCP) printf("[MAP] Pacchetto creato. Serializzo\n");
+    if (verbosity_level>=DebugTCP) printf("[MAP] Packet created. Serializing...\n");
 
 	size_t request_texture_map_for_server_len=Packet_serialize(request_texture_map_for_server, &(request_map->header));
 
-    if (verbosity_level>=DebugTCP) printf("[MAP] Serializzazione completata, invio del pacchetto in corso...\n");
+    if (verbosity_level>=DebugTCP) printf("[MAP] Packet serialized, sending packet...\n");
 
   	ret = send_TCP(socket_desc, request_texture_map_for_server, request_texture_map_for_server_len, 0);
   	ERROR_HELPER(ret, "Could not send my texture for server");
 
-    if (verbosity_level>=DebugTCP) printf("[MAP] Byte inviati: %d\n", ret);
+    if (verbosity_level>=DebugTCP) printf("[MAP] Bytes sent: %d\n", ret);
 
-    if (verbosity_level>=DebugTCP) printf("[MAP] Invio del pacchetto avvenuto con successo!\n");
+    if (verbosity_level>=DebugTCP) printf("[MAP] Packet sent successfully!\n");
 
     free(request_texture_map_for_server);
     Packet_free((PacketHeader *) request_map);
 
-    if (verbosity_level>=DebugTCP) printf("[MAP] Attendo la mappa dal server\n");
+    if (verbosity_level>=DebugTCP) printf("[MAP] Waiting map from server\n");
 
 
     char *texture_map = (char *)malloc(DIM_BUFF*sizeof(char));                    //buffer per la ricezione della mappa
@@ -880,17 +880,17 @@ int main(int argc, char **argv) {
 
     msg_len = bytes_read;
 
-    if (verbosity_level>=DebugTCP) printf("[MAP] Byte letti: %ld\n", msg_len);
+    if (verbosity_level>=DebugTCP) printf("[MAP] Bytes read: %ld\n", msg_len);
 
     ImagePacket* map =(ImagePacket*)Packet_deserialize(texture_map,msg_len);
-    if (verbosity_level>=DebugTCP) printf("[MAP] Paccheto deserializzato \n");
+    if (verbosity_level>=DebugTCP) printf("[MAP] Packet deserialized \n");
 
 
     free(texture_map);
  
 	// these come from the server
 
-    if (verbosity_level>=DebugTCP) printf("[CLIENT] Aggiorno i parametri\n");
+    if (verbosity_level>=DebugTCP) printf("[CLIENT] Updating parameters\n");
 
 	Image* map_elevation = elevation->image;
 	Image* map_texture = map->image;
@@ -900,7 +900,7 @@ int main(int argc, char **argv) {
     Packet_free((PacketHeader *) elevation);
     Packet_free((PacketHeader *) map);
 
-    if (verbosity_level>=DebugTCP) printf("[CLIENT] Parametri aggiornati. Costruzione del mondo\n");
+    if (verbosity_level>=DebugTCP) printf("[CLIENT] Parameters updated. Creating the world...\n");
 
 	// construct the world
 	World_init(&world, map_elevation, map_texture, 0.5, 0.5, 0.5);
@@ -908,7 +908,7 @@ int main(int argc, char **argv) {
     Vehicle_init(vehicle, &world, my_id, my_texture_from_server);
     // prendo le vecchie coordinate se sono un utente già registrato
     if (my_coord != NULL) {
-        if (verbosity_level>=DebugTCP) printf("[CLIENT] Ecco le mie vecchie coordinate: "
+        if (verbosity_level>=DebugTCP) printf("[CLIENT] Here's my old coordinates: "
             "(x,y,theta) = (%f,%f,%f)\n", my_coord->x, my_coord->y, my_coord->theta);
         vehicle->x = my_coord->x; vehicle->prev_x = my_coord->x;
         vehicle->y = my_coord->y; vehicle->prev_y = my_coord->y;
