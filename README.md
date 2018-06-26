@@ -57,6 +57,7 @@ Please see the [DOCUMENTATION](Documentation.md) file for details
 * <s>BUG world_addVehicle in caso di utente già registrato</s>
 * <s>BUG non sono visualizzati nel mondo gli aggiornamenti degli altri giocatori</s>
 * <s>BUG Errata ricezione della mappa o dell'elevation map</s>
-* BUG Spawn nell'ultima posizione registrata in caso di utente già registrato
-* BUG Gestione della memoria
-
+* <s>BUG Spawn nell'ultima posizione registrata in caso di utente già registrato</s>
+* <s>BUG Segmentation Fault nella chiusura del server</s>
+* <s>BUG Gestione della memoria</s>
+* BUG Segmentation Fault se si fa la World_destroy quando si chiude il client tramite ctrl+C

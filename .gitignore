@@ -1,0 +1,6 @@
+*.o
+*.a
+/Videogame/so_game_client
+/Videogame/so_game_server
+/Videogame/test_packets_serialization
+/Videogame/libso_game.a
