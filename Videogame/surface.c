@@ -41,8 +41,9 @@ void Surface_destroy(Surface* s) {
   s->rows = 0;
   s->cols = 0;
   s->gl_texture = -1;
-  if (s->_destructor)
+  if (s->_destructor) {
     (*s->_destructor)(s);
+  }
 }
 
 void Surface_fromMatrix(Surface* s,

@@ -30,7 +30,7 @@ void WorldViewer_reshapeViewport(WorldViewer* viewer, int width, int height);
 
 void WorldViewer_runGlobal(World* world,
 			   Vehicle* self,
-			   int* argc, char** argv);
+			   int* argc, char** argv, int* win);
 
 void WorldViewer_reshapeViewport(WorldViewer* viewer, int width, int height);
 

@@ -92,8 +92,6 @@ void handle_signal(int sig){
 
             if (verbosity_level>=General) printf("World destroyed\n");
 
-            //exit(1);
-
             break;
 
         case SIGSEGV:
@@ -131,8 +129,6 @@ void handle_signal(int sig){
             World_destroy(&world);
 
             if (verbosity_level>=General) printf("World destroyed\n");
-
-            //exit(1);
 
             break;
 

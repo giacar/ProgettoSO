@@ -377,11 +377,11 @@ void WorldViewer_run(WorldViewer* viewer,
 
 void WorldViewer_runGlobal(World* world,
 			   Vehicle* self,
-			   int* argc_ptr, char** argv) {
+			   int* argc_ptr, char** argv, int* win) {
   // initialize GL
   glutInit(argc_ptr, argv);
   glutInitDisplayMode(GLUT_DOUBLE | GLUT_RGB | GLUT_DEPTH);
-  glutCreateWindow("main");
+  *win=glutCreateWindow("main");
 
   // set the callbacks
   glutDisplayFunc(display);

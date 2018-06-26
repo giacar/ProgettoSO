@@ -30,6 +30,8 @@ int recv_TCP_packet(int socket, char* buf, int flags, int* bytes_read) {
 		bytes_letti += ret;
 	}
 
+	if(bytes_letti == -1) return 0;		// da usare in caso di interruzioni
+
 	if (verbosity_level>=DebugTCP) printf("[RECV_TCP_PACKET] Bytes read (header) = %d\n", bytes_letti);
 
 	PacketHeader *head = (PacketHeader*)buf;

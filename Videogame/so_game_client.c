@@ -31,7 +31,10 @@ int socket_desc;		//socket desc TCP
 int socket_desc_UDP;	//socket desc UDP
 sem_t sem_world_c;
 int communication = 1;
-
+Image *map_elevation=0;    // elevation map loaded
+Image *map_texture=0;      // texture map loaded
+Image *my_texture=0;       // vehicle texture loaded
+int win;
 
 
 //se recv() restituisce 0 o un errore di socket (ENOTCONN et similia), vuol dire che la comunicazione è stata chiusa. Idem per recvfrom
@@ -51,6 +54,10 @@ void handle_signal(int sig){
             if (verbosity_level>=General) printf("Closing...\n");
             communication = 0;
             sleep(2);           // attendo che gli altri thread escano dal while
+            
+            ret=shutdown(socket_desc,SHUT_RDWR);
+            ERROR_HELPER(ret,"Error shutdown socket_desc \n");
+
             ret = close(socket_desc);
             ERROR_HELPER(ret, "Error in closing socket desc TCP");
 
@@ -62,44 +69,39 @@ void handle_signal(int sig){
 
             if (verbosity_level>=General) printf("Socket closed and semaphores destroyed\n");
 
-            if (verbosity_level>=General) printf("Attempting to destroy world and vehicle\n");
+            if (map_elevation) Image_free(map_elevation);
+            if (map_texture) Image_free(map_texture);
+            if (my_texture) Image_free(my_texture);
 
-            World_destroy(&world);
+            if (verbosity_level>=General) printf("Elevation map, texture map and vehicle texture destroyed\n");
 
-            //if (verbosity_level>=General) printf("World destroyed\n");
+            glutDestroyWindow(win);     // chiudo la finestra
 
-            //if (vehicle) free(vehicle);
-
-            if (verbosity_level>=General) printf("Vehicle and World destroyed\n");
-            exit(1);
             break;
 
         case SIGSEGV:
             if (verbosity_level>=General) printf("Segmentation fault... closing\n");
             communication = 0;
-            sleep(2);       // attendo che gli altri thread escano dal while
+            sleep(2);           // attendo che gli altri thread escano dal while
             ret = close(socket_desc);
-            ERROR_HELPER(ret, "Error in closing socket desc TCP");
+            if (errno != EBADF) ERROR_HELPER(ret, "Error in closing socket desc TCP");
 
             ret = close(socket_desc_UDP);
-            ERROR_HELPER(ret, "Error in closing socket desc UDP");
+            if (errno != EBADF) ERROR_HELPER(ret, "Error in closing socket desc UDP");
 
             ret = sem_destroy(&sem_world_c);
-            ERROR_HELPER(ret, "Error in destroy sem_world_c");
+            if (errno != EINVAL) ERROR_HELPER(ret, "Error in destroy sem_world_c");
 
             if (verbosity_level>=General) printf("Socket closed and semaphores destroyed\n");
 
-            if (verbosity_level>=General) printf("Attempting to destroy world and vehicle\n");
+            if (map_elevation) Image_free(map_elevation);
+            if (map_texture) Image_free(map_texture);
+            if (my_texture) Image_free(my_texture);
 
-            World_destroy(&world);
+            if (verbosity_level>=General) printf("Elevation map, texture map and vehicle texture destroyed\n");
 
-            //if (verbosity_level>=General) printf("World destroyed\n");
-
-            //if (vehicle) free(vehicle);
-
-            if (verbosity_level>=General) printf("Vehicle and World destroyed\n");
-            break;
             exit(1);
+            break;         
 
         case SIGPIPE:
             if (verbosity_level>=General) printf("Socket closed\n");
@@ -151,13 +153,15 @@ void* thread_listener_tcp(void* client_args){
         if (verbosity_level>=DebugTCP) printf("\n[TCP] Receiving users already in world\n");
 
         ret = recv_TCP_packet(socket, user, 0, &bytes_read);
-        if (ret == -2 || ret == 0){
+        if (ret == -2){
         	printf("Could not receive users already in world\n");
             ualarm(1,0);
             printf("\nServer closed, goodbye!\n");
             exit(0);
         }
         else PTHREAD_ERROR_HELPER(ret, "Could not receive users already in world");
+        
+        if (!communication) break;
 
         msg_len=bytes_read;
 
@@ -215,7 +219,10 @@ void* thread_listener_tcp(void* client_args){
     }
 
     free(user);
-    //if (arg) free(arg);     // messo controllo perché arg è condiviso tra i tre thread
+    free(arg);
+    if (verbosity_level>=General) printf("Free of thread arg\n");
+    
+    if (verbosity_level>=General) printf("[TCP] Exit from thread\n");
     pthread_exit(NULL);
 
 }
@@ -286,7 +293,12 @@ void* thread_listener_udp_M(void* client_args){
 
     Packet_free((PacketHeader *) update);
     free(vehicle_update);
-    //if (arg) free(arg);     // messo controllo perché arg è condiviso tra i tre thread
+    
+    //if (verbosity_level>=General) printf("Attempting to destroy world and vehicle\n");
+    //World_destroy(&world);            // va in seg fault nella funzione Surface_destroy dentro if s->_destructor
+    //if (verbosity_level>=General) printf("Vehicle and World destroyed\n");
+    
+    if (verbosity_level>=General) printf("[UDP SENDER] Exit from thread\n");
     pthread_exit(NULL);
 }
 
@@ -397,7 +409,8 @@ void* thread_listener_udp_W(void* client_args){
     }
 
     free(world_update);
-    //if (arg) free(arg);     // messo controllo perché arg è condiviso tra i tre thread
+
+    if (verbosity_level>=General) printf("[UDP RECEIVER] Exit from thread\n");
     pthread_exit(NULL);
 
 }
@@ -413,7 +426,7 @@ int main(int argc, char **argv) {
     if (verbosity_level>=General) printf("DEBUG MODE\n");
 
 	printf("loading texture image from %s ... ", argv[2]);
-	Image* my_texture = Image_load(argv[2]);
+	my_texture = Image_load(argv[2]);
 	if (my_texture) {
 		printf("Done! \n");
 	} else {
@@ -877,8 +890,8 @@ int main(int argc, char **argv) {
 
     if (verbosity_level>=DebugTCP) printf("[CLIENT] Updating parameters\n");
 
-	Image* map_elevation = elevation->image;
-	Image* map_texture = map->image;
+	map_elevation = elevation->image;
+	map_texture = map->image;
 
     elevation->image = NULL;
     map->image = NULL;
@@ -944,13 +957,8 @@ int main(int argc, char **argv) {
 	ret = pthread_detach(thread_udp_W);
 	ERROR_HELPER(ret, "Could not detach thread");
 
-	WorldViewer_runGlobal(&world, vehicle, &argc, argv);
+	WorldViewer_runGlobal(&world, vehicle, &argc, argv, &win);
 
-    // libero l'elevation map, la texture map e la texture del veicolo
-    if (map_elevation) Image_free(map_elevation);
-    if (map_texture) Image_free(map_texture);
-    if (my_texture) Image_free(my_texture);
-    free(args);
-
+    if (verbosity_level>=General) printf("[MAIN] Exit from main\n");
 	return 0;
 }
