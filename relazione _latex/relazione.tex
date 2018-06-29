@@ -1,0 +1,125 @@
+\documentclass{report}
+\usepackage[english]{babel}
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\begin{document}
+\title{Operating Sistem Project \\ \large {VideoGame (3 pepole)}
+\\ \large{Implement a distributed videogame}}
+\author{Cariggi Gianmarco \and Ceccarelli Riccardo \and Francesco Fabbi}
+\date{\today}
+\maketitle
+
+\tableofcontents
+\chapter{Introduction}
+\section{Server Side}
+\subsection{TCP part}
+\begin{enumerate}
+\item registering a new client when it comes online, by registering his username and password;
+\item deregistering a client when it goes offline, but saving his status, in order to restore whenever it goes online again;
+\item sending the map, when the client requests it;
+\item send periodically a test packet to check connection with clients;
+\end{enumerate}
+\subsection{UDP Part}
+\begin{enumerate}
+\item the server receives periodic upates from the client in the form of <timestamp, translational acceleration, rotational acceleration>;
+\item Each "epoch" it integrates the messages from the clients, and sends back a state update;
+\item the server sends to each connected client the position of the agents around him;
+\end{enumerate}
+\section{Client Side}
+\subsection{Starting}
+\begin{enumerate}
+\item connects to the server (TCP), by registering with a login protocol;
+\item requests the map, and gets an ID from the server (TCP);
+\end{enumerate}
+\subsection{Periodically}
+\begin{enumerate}
+\item receives udates on the state from the server(TCP-UDP);
+\item updates the viewer (provided)
+\item reads either keyboard or joystick
+\item sends the <UDP> packet of the control to the server
+\end{enumerate}
+\chapter{Work}
+\section{Server Side}
+When we launch the server from terminal, we need to specify elevation map and surface texture.
+Then it starts initializing all it needs to work: data structures for clients, UDP socket, world and
+semaphores. Also, it defines a signal handler for many signals, in order to shut down properly
+whenever we close the server or a problem occurs.
+Next, the server defines two UDP threads: first one for receiving updates from all the connected
+clients, the second one for updating the world and sending them the world updates. We’ll specify
+these threads’ behavior next.
+UDP socket listen and communicate by using a port defined in \underline{common.h} (SERVER\_PORT\_UDP).
+Server defines a TCP socket similarly. Like UDP socket, TCP port is defined in \underline{common.h}
+(SERVER\_PORT\_TCP).
+Whenever a client connects, the server creates and launches a thread for communicate with it via
+TCP. This thread handles the login, checking if it’s a new user, or if it’s reconnecting to the game
+after some time. We use the data structures defined before for this purpose. We have two of them:
+the first one, saves client’s username and password and it’s the one we use for checking if it’s
+reconnecting, while in the second one there are all the informations we need to know about the
+client, like id, texture, address for UDP communication, TCP socket, position and, most of all, it’s
+status, in order to realize if it’s connected, disconnected, or it never was connected at all.
+When login is finished, TCP part protocol starts: in order, server waits for an Id request, then
+calculates an Id and sends it to the client, waits for client’s texture (so can save it) and sends it back,
+then waits for an elevation map request and sends it, same for the map.
+Later, if other clients are connected, server send them the texture of the new client, and to the latter
+the textures of the others, in order to let him initialize his world properly. This second passage is
+also useful for determining if someone disconnected, because if server tries to send something to a
+client using a TCP socket, if this process returns an error, then it realizes that that particular client
+disconnected, and can update its status.
+Like we said before, there are two UDP threads, one for receive updates from clients, and one for
+send them the world update.
+First one receives the force values of the client and updates its vehicle’s force (translational and
+rotational forces), second one updates the world and send it to all of the connected clients.
+If a client disconnects, server saves its last known position and if that particular client reconnects,
+sends him that position.
+When server shuts down, it closes sockets, terminates threads and removes all those data structures
+no more needed.
+\section{Client Side}
+When launching a new client, we need to specify the IP address of the server, and the texture of the
+vehicle it will use. Client can work only if server is on, otherwise will receive an error message and
+shut down. Like the server, client creates UDP and TCP sockets, two UDP threads, one TCP thread
+and a handler for many signals, in order to shut down properly. Ports for TCP and UDP sockets are
+defined in common.h.
+When it connects, in order to join the game, it must specify an username and a password. These
+informations are necessary, and helps server to understand if the client is a new one, or and old one
+which disconnected before and it’s reconnecting now. After login protocol, it starts asking for all the
+info it needs: id, elevation map and map. Also it sends its texture to server, and receives it back.
+Next, he will receive the textures of all those clients already connected.Periodically, client sends its forces values to server (translational and rotational forces) using one
+thread UDP, the other one will be used for receive the world from server and update all the clients’
+positions.
+When client shut down, it closes sockets, terminates threads and removes all those data structures
+no more needed.
+\section{General}
+In this project, we defined some new version for recv and send functions. When both the server or
+the client need to receive some packets via TCP, they use a function called recv\_TCP\_packet, which
+results useful for receiving the exact amount of byte we need to receive. Otherwise, when we need
+to receive normal strings, or a UDP packet, we use a standard recv/recvfrom, but still we defined a
+function called recv\_TCP/recv\_UDP. Same for send functions (both TCP and UDP). Thus, in order
+to semplify error handling and avoid code excess.
+\chapter{Usage}
+First of all, compile the videogame. In the directory where the folder is located, open a terminal and
+digit:
+\begin{verbatim}
+make
+\end{verbatim}
+This will create two executable files: so\_game\_server and so\_game\_client.
+\section{Server}
+\begin{verbatim}
+./so_game_server <elevation_map_directory>/<elevation\_map>.pgm 
+ <map_texture_directory>/<map_texture>.ppm (without “<>”)
+\end{verbatim}
+\section{Client}
+\begin{verbatim}
+./so_game_client <Server IP address> (without “<>”) 
+ <vehicle_texture_directory>/<client_texture>.ppm
+\end{verbatim}
+\section{Example}
+Execute client and server on different terminals
+\subsection{For Server}
+\begin{verbatim}
+./so_game_server ./images/maze.pgm ./images/maze.ppm
+\end{verbatim}
+\subsection{For Client}
+\begin{verbatim}
+./so_game_client 127.0.0.1 ./images/arrow-right.ppm
+\end{verbatim}
+\end{document}
