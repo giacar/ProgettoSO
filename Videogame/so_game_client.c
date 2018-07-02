@@ -153,7 +153,7 @@ void* thread_listener_tcp(void* client_args){
         if (verbosity_level>=DebugTCP) printf("\n[TCP] Receiving users already in world\n");
 
         ret = recv_TCP_packet(socket, user, 0, &bytes_read);
-        if (ret == -2){
+        if (ret == -2 || ret == 0){
         	printf("Could not receive users already in world\n");
             ualarm(1,0);
             printf("\nServer closed, goodbye!\n");
