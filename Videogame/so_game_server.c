@@ -957,7 +957,6 @@ void* thread_server_UDP_sender(void* args){
 
         if (verbosity_level>=DebugUDP) printf("[UDP SENDER] Wait crossed\n");
 
-        World_update(&world);
         int i,j;
         int num_connected=0;
         for(i=0;i<MAX_USER_NUM;i++){
@@ -1045,7 +1044,7 @@ void* thread_server_UDP_sender(void* args){
 
         if (verbosity_level>=DebugUDP) printf("[UDP SENDER] Post executed\n");
 
-        usleep(2000);
+        usleep(1000);
     }
 
     free(msg);
@@ -1108,6 +1107,8 @@ void* thread_server_UDP_receiver(void* args){
             v->translational_force_update=packet->translational_force;
             v->rotational_force_update=packet->rotational_force;
         }
+
+        World_update(&world);
 
 		ret = sem_post(&sem_world);
 		ERROR_HELPER(ret, "Failed to post sem_world in thread_UDP_receiver");

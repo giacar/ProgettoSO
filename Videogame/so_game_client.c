@@ -287,7 +287,7 @@ void* thread_listener_udp_M(void* client_args){
         }
         PTHREAD_ERROR_HELPER(ret, "Could not send vehicle updates to server");
         if (verbosity_level>=DebugUDP) printf("[UDP SENDER] Packet with my forces sent\n");
-        usleep(2000);
+        usleep(40000);
 
     }
 
